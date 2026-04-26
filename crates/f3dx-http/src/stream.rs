@@ -149,12 +149,15 @@ impl PyAssembledStream {
         url: String,
         req: ChatCompletionRequest,
         span: Option<SpanT>,
+        validate_json: bool,
     ) -> PyResult<Self> {
         let (tx, rx) = mpsc::channel::<StreamEvent>();
         let runtime_handle = Arc::clone(&runtime);
         runtime_handle.spawn(async move {
             let mut span = span;
-            if let Err(e) = pump_openai_assembled(client, url, req, tx.clone(), &mut span).await {
+            if let Err(e) =
+                pump_openai_assembled(client, url, req, tx.clone(), &mut span, validate_json).await
+            {
                 if let Some(s) = span.take() {
                     otel::finish_err(s, format!("{e}"));
                 }
@@ -183,6 +186,7 @@ async fn pump_openai_assembled(
     req: ChatCompletionRequest,
     tx: Sender<StreamEvent>,
     span: &mut Option<SpanT>,
+    validate_json: bool,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let resp = client
         .post(&url)
@@ -194,6 +198,8 @@ async fn pump_openai_assembled(
     // BTreeMap so we emit tool calls in deterministic index order at the end
     let mut partials: BTreeMap<u64, PartialToolCall> = BTreeMap::new();
     let mut finish_reason: Option<String> = None;
+    // Accumulator for validate_json mode (concatenates all delta.content)
+    let mut content_buf = String::new();
 
     let mut sse = resp.bytes_stream().eventsource();
     while let Some(event) = sse.next().await {
@@ -222,6 +228,9 @@ async fn pump_openai_assembled(
 
                     if let Some(content) = choice.delta.content.as_ref() {
                         if !content.is_empty() {
+                            if validate_json {
+                                content_buf.push_str(content);
+                            }
                             let event_str = format!(
                                 r#"{{"type":"delta_content","content":{}}}"#,
                                 serde_json::to_string(content).unwrap_or_else(|_| "\"\"".into())
@@ -258,6 +267,25 @@ async fn pump_openai_assembled(
         let event_str = serde_json::to_string(&event).unwrap_or_default();
         if tx.send(StreamEvent::Chunk(event_str)).is_err() {
             return Ok(());
+        }
+    }
+
+    // If validation requested, parse the accumulated content as JSON and
+    // emit either validated_output or validation_error before done.
+    if validate_json && !content_buf.is_empty() {
+        match serde_json::from_str::<Value>(&content_buf) {
+            Ok(parsed) => {
+                let event = serde_json::json!({"type": "validated_output", "data": parsed});
+                let _ = tx.send(StreamEvent::Chunk(event.to_string()));
+            }
+            Err(e) => {
+                let event = serde_json::json!({
+                    "type": "validation_error",
+                    "raw": content_buf,
+                    "error": e.to_string(),
+                });
+                let _ = tx.send(StreamEvent::Chunk(event.to_string()));
+            }
         }
     }
 

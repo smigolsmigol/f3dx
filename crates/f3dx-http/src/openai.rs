@@ -187,10 +187,19 @@ impl PyOpenAIClient {
     ///   {"type": "done", "finish_reason": "stop"}
     /// User code never has to accumulate arguments fragments or json.loads
     /// the assembled string — f3dx does it Rust-side.
+    ///
+    /// validate_json=True: accumulate delta.content fragments, attempt
+    /// json.loads at terminal, emit one extra event before done:
+    ///   {"type": "validated_output", "data": <parsed dict>}      on success
+    ///   {"type": "validation_error", "raw": "...", "error": "..."}  on parse fail
+    /// Use this with response_format={"type": "json_object"} to skip the
+    /// "accumulate content + json.loads at end" boilerplate Python-side.
+    #[pyo3(signature = (request, validate_json = false))]
     fn chat_completions_create_stream_assembled<'py>(
         &self,
         py: Python<'py>,
         request: Bound<'py, PyAny>,
+        validate_json: bool,
     ) -> PyResult<Py<PyAssembledStream>> {
         let mut req = parse_request(py, request)?;
         req.stream = Some(true);
@@ -212,6 +221,7 @@ impl PyOpenAIClient {
             url,
             req,
             span,
+            validate_json,
         )
         .map(|s| Py::new(py, s))
         .and_then(|r| r)
