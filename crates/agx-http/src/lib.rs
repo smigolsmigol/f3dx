@@ -23,12 +23,13 @@ use pyo3::prelude::*;
 
 pub use anthropic::PyAnthropicClient;
 pub use openai::PyOpenAIClient;
-pub use stream::{PyAnthropicStream, PyChatCompletionStream};
+pub use stream::{PyAnthropicStream, PyAssembledStream, PyChatCompletionStream};
 
 /// Register agx-http's pyclasses into a parent Python module.
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyOpenAIClient>()?;
     m.add_class::<PyChatCompletionStream>()?;
+    m.add_class::<PyAssembledStream>()?;
     m.add_class::<PyAnthropicClient>()?;
     m.add_class::<PyAnthropicStream>()?;
     Ok(())

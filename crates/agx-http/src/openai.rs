@@ -8,7 +8,7 @@
 
 use crate::request::ChatCompletionRequest;
 use crate::response::ChatCompletionResponse;
-use crate::stream::PyChatCompletionStream;
+use crate::stream::{PyAssembledStream, PyChatCompletionStream};
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyString};
@@ -137,6 +137,33 @@ impl PyOpenAIClient {
 
         let url = format!("{}/chat/completions", self.base_url);
         PyChatCompletionStream::start(
+            Arc::clone(&self.client),
+            Arc::clone(&self.runtime),
+            url,
+            req,
+        )
+        .map(|s| Py::new(py, s))
+        .and_then(|r| r)
+    }
+
+    /// Sync chat completion stream with Rust-side tool-call reassembly.
+    /// Yields three event types instead of raw chunks:
+    ///   {"type": "delta_content", "content": "..."}
+    ///   {"type": "tool_call", "id": "...", "name": "...",
+    ///    "arguments": {parsed dict}, "index": N}
+    ///   {"type": "done", "finish_reason": "stop"}
+    /// User code never has to accumulate arguments fragments or json.loads
+    /// the assembled string — agx does it Rust-side.
+    fn chat_completions_create_stream_assembled<'py>(
+        &self,
+        py: Python<'py>,
+        request: Bound<'py, PyAny>,
+    ) -> PyResult<Py<PyAssembledStream>> {
+        let mut req = parse_request(py, request)?;
+        req.stream = Some(true);
+
+        let url = format!("{}/chat/completions", self.base_url);
+        PyAssembledStream::start(
             Arc::clone(&self.client),
             Arc::clone(&self.runtime),
             url,

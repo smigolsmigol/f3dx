@@ -1,14 +1,15 @@
 //! agx-http SSE streaming.
 //!
-//! Two streaming surfaces:
-//!   PyChatCompletionStream  — OpenAI shape, terminator "[DONE]" sentinel
-//!   PyAnthropicStream       — Anthropic Messages shape, multiple event:
-//!                             types, terminator on event=message_stop
+//! Three Python-facing streaming classes:
+//!   PyChatCompletionStream         — OpenAI raw chunks (Phase B)
+//!   PyAssembledStream              — OpenAI assembled events (Phase D):
+//!                                    delta_content / tool_call / done
+//!   PyAnthropicStream              — Anthropic raw events (Phase C)
 //!
-//! Both share the same architecture: a tokio task pumps SSE events from
-//! the model endpoint into a std::sync::mpsc channel. The Python iterator
-//! pulls chunks via .recv() with the GIL released, so concurrent threads
-//! can run.
+//! All three share the same architecture: a tokio task pumps SSE events
+//! from the model endpoint into a std::sync::mpsc channel. The Python
+//! iterator pulls chunks via .recv() with the GIL released, so concurrent
+//! threads can run.
 
 use crate::request::ChatCompletionRequest;
 use crate::response::ChatCompletionChunk;
@@ -19,22 +20,19 @@ use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use reqwest::Client;
 use serde_json::Value;
+use std::collections::BTreeMap;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::runtime::Runtime;
 
-/// One streamed event sent from the tokio task to the Python iterator.
 enum StreamEvent {
-    /// Parsed chunk JSON (raw string; Python side parses to dict).
     Chunk(String),
-    /// Terminal sentinel.
     Done,
-    /// Stream error.
     Err(String),
 }
 
-// ---------- OpenAI streaming ----------
+// ---------- OpenAI raw streaming ----------
 
 #[pyclass(name = "ChatCompletionStream", module = "agx._agx", unsendable)]
 pub struct PyChatCompletionStream {
@@ -84,8 +82,6 @@ async fn pump_openai(
                     let _ = tx.send(StreamEvent::Done);
                     return Ok(());
                 }
-                // Validate the chunk parses; pass through raw on schema mismatch
-                // so vendor non-strict shapes still flow.
                 let _: Result<ChatCompletionChunk, _> = serde_json::from_str(&ev.data);
                 if tx.send(StreamEvent::Chunk(ev.data)).is_err() {
                     return Ok(());
@@ -103,6 +99,169 @@ async fn pump_openai(
 
 #[pymethods]
 impl PyChatCompletionStream {
+    fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
+        slf
+    }
+
+    fn __next__<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
+        recv_chunk_to_dict(py, &self.rx)
+    }
+}
+
+// ---------- OpenAI assembled streaming (Phase D) ----------
+//
+// Reassembles fragmented tool_call streams Rust-side. User code gets
+// three clean event types:
+//   {"type": "delta_content", "content": "tok"}
+//   {"type": "tool_call", "id": "call_abc", "name": "search",
+//    "arguments": {...parsed JSON dict...}, "index": 0}
+//   {"type": "done", "finish_reason": "stop"}
+//
+// Compared to the raw OpenAI SDK streaming surface, user code does not
+// have to: accumulate arguments fragments by index, reassemble the
+// arguments string, json.loads at the end, dispatch on chunk shape.
+
+#[pyclass(name = "AssembledStream", module = "agx._agx", unsendable)]
+pub struct PyAssembledStream {
+    rx: Mutex<Receiver<StreamEvent>>,
+    _runtime: Arc<Runtime>,
+}
+
+impl PyAssembledStream {
+    pub fn start(
+        client: Arc<Client>,
+        runtime: Arc<Runtime>,
+        url: String,
+        req: ChatCompletionRequest,
+    ) -> PyResult<Self> {
+        let (tx, rx) = mpsc::channel::<StreamEvent>();
+        let runtime_handle = Arc::clone(&runtime);
+        runtime_handle.spawn(async move {
+            if let Err(e) = pump_openai_assembled(client, url, req, tx.clone()).await {
+                let _ = tx.send(StreamEvent::Err(format!("agx-http stream: {e}")));
+            }
+        });
+        Ok(Self {
+            rx: Mutex::new(rx),
+            _runtime: runtime,
+        })
+    }
+}
+
+#[derive(Default, Debug)]
+struct PartialToolCall {
+    id: String,
+    name: String,
+    arguments_buf: String,
+}
+
+async fn pump_openai_assembled(
+    client: Arc<Client>,
+    url: String,
+    req: ChatCompletionRequest,
+    tx: Sender<StreamEvent>,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let resp = client
+        .post(&url)
+        .json(&req)
+        .send()
+        .await?
+        .error_for_status()?;
+
+    // BTreeMap so we emit tool calls in deterministic index order at the end
+    let mut partials: BTreeMap<u64, PartialToolCall> = BTreeMap::new();
+    let mut finish_reason: Option<String> = None;
+
+    let mut sse = resp.bytes_stream().eventsource();
+    while let Some(event) = sse.next().await {
+        match event {
+            Ok(ev) => {
+                if ev.data == "[DONE]" {
+                    break;
+                }
+                let chunk: ChatCompletionChunk = match serde_json::from_str(&ev.data) {
+                    Ok(c) => c,
+                    Err(_) => continue, // pass through bad-shape chunks silently
+                };
+
+                for choice in chunk.choices.iter() {
+                    if let Some(reason) = choice.finish_reason.clone() {
+                        finish_reason = Some(reason);
+                    }
+
+                    if let Some(content) = choice.delta.content.as_ref() {
+                        if !content.is_empty() {
+                            let event_str = format!(
+                                r#"{{"type":"delta_content","content":{}}}"#,
+                                serde_json::to_string(content).unwrap_or_else(|_| "\"\"".into())
+                            );
+                            if tx.send(StreamEvent::Chunk(event_str)).is_err() {
+                                return Ok(());
+                            }
+                        }
+                    }
+
+                    if let Some(tcs) = choice.delta.tool_calls.as_ref() {
+                        accumulate_tool_calls(tcs, &mut partials);
+                    }
+                }
+            }
+            Err(e) => {
+                let _ = tx.send(StreamEvent::Err(format!("sse parse: {e}")));
+                return Ok(());
+            }
+        }
+    }
+
+    // Emit assembled tool calls in index order
+    for (index, partial) in partials.into_iter() {
+        let parsed_args: Value = serde_json::from_str(&partial.arguments_buf)
+            .unwrap_or_else(|_| Value::String(partial.arguments_buf.clone()));
+        let event = serde_json::json!({
+            "type": "tool_call",
+            "id": partial.id,
+            "name": partial.name,
+            "arguments": parsed_args,
+            "index": index,
+        });
+        let event_str = serde_json::to_string(&event).unwrap_or_default();
+        if tx.send(StreamEvent::Chunk(event_str)).is_err() {
+            return Ok(());
+        }
+    }
+
+    let done_event = serde_json::json!({
+        "type": "done",
+        "finish_reason": finish_reason,
+    });
+    let _ = tx.send(StreamEvent::Chunk(done_event.to_string()));
+    let _ = tx.send(StreamEvent::Done);
+    Ok(())
+}
+
+fn accumulate_tool_calls(tcs: &Value, partials: &mut BTreeMap<u64, PartialToolCall>) {
+    let Some(arr) = tcs.as_array() else { return };
+    for tc in arr.iter() {
+        let index = tc.get("index").and_then(|v| v.as_u64()).unwrap_or(0);
+        let entry = partials.entry(index).or_default();
+        if let Some(id) = tc.get("id").and_then(|v| v.as_str()) {
+            entry.id = id.to_string();
+        }
+        if let Some(func) = tc.get("function") {
+            if let Some(name) = func.get("name").and_then(|v| v.as_str()) {
+                if !name.is_empty() {
+                    entry.name = name.to_string();
+                }
+            }
+            if let Some(args) = func.get("arguments").and_then(|v| v.as_str()) {
+                entry.arguments_buf.push_str(args);
+            }
+        }
+    }
+}
+
+#[pymethods]
+impl PyAssembledStream {
     fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
         slf
     }
@@ -156,7 +315,6 @@ async fn pump_anthropic(
     while let Some(event) = sse.next().await {
         match event {
             Ok(ev) => {
-                // Anthropic terminator: event=message_stop
                 if ev.event == "message_stop" {
                     if tx.send(StreamEvent::Chunk(ev.data)).is_err() {
                         return Ok(());
@@ -164,7 +322,6 @@ async fn pump_anthropic(
                     let _ = tx.send(StreamEvent::Done);
                     return Ok(());
                 }
-                // Skip pings to reduce noise; real content always carries data
                 if ev.event == "ping" {
                     continue;
                 }
