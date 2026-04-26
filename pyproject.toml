@@ -1,0 +1,33 @@
+[build-system]
+requires = ["maturin>=1.13,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "agx"
+version = "0.0.1"
+description = "Rust-core runtime for pydantic-ai. Polars for agents."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [
+    { name = "Federico Coccoli", email = "fed1@f3d1.dev" },
+]
+classifiers = [
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "License :: OSI Approved :: MIT License",
+]
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "maturin>=1.13",
+]
+
+[tool.maturin]
+features = ["pyo3/extension-module"]
+module-name = "agx._agx"
+python-source = "python"
