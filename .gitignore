@@ -12,3 +12,7 @@ build/
 .ruff_cache/
 .mypy_cache/
 Cargo.lock
+python/agx/_agx.pdb
+python/agx/_agx.pyd
+python/agx/__pycache__/
+bench/__pycache__/
