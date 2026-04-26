@@ -13,11 +13,14 @@
 //! this because asyncio dispatches sequentially within one event loop.
 
 use ahash::AHashMap;
+use opentelemetry::trace::{Span, Status, Tracer as _};
+use opentelemetry::KeyValue;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::thread;
+use std::time::Instant;
 
 // ---------- message types ----------
 
@@ -86,6 +89,17 @@ impl AgentRuntime {
         tools: Bound<'py, PyDict>,
         mock_responses: Bound<'py, PyList>,
     ) -> PyResult<Bound<'py, PyDict>> {
+        let t_start = Instant::now();
+        let mut span = agx_trace::tracer().map(|t| {
+            let mut s = t.start("agx.agent_runtime.run");
+            s.set_attribute(KeyValue::new("gen_ai.system", "agx"));
+            s.set_attribute(KeyValue::new("agx.concurrent_tool_dispatch", self.concurrent_tool_dispatch));
+            s.set_attribute(KeyValue::new("agx.max_iterations", self.max_iterations as i64));
+            s.set_attribute(KeyValue::new("agx.max_tool_calls", self.max_tool_calls as i64));
+            s.set_attribute(KeyValue::new("gen_ai.prompt.length_chars", prompt.len() as i64));
+            s
+        });
+
         let mut tool_table: AHashMap<String, Py<PyAny>> = AHashMap::with_capacity(tools.len());
         for (k, v) in tools.iter() {
             let name: String = k.extract()?;
@@ -169,10 +183,21 @@ impl AgentRuntime {
             }
         }
 
+        let elapsed_ms = t_start.elapsed().as_secs_f64() * 1000.0;
+        if let Some(s) = span.as_mut() {
+            s.set_attribute(KeyValue::new("agx.iterations", iter_done as i64));
+            s.set_attribute(KeyValue::new("agx.tool_calls_executed", tool_calls_executed as i64));
+            s.set_attribute(KeyValue::new("agx.output.length_chars", final_answer.len() as i64));
+            s.set_attribute(KeyValue::new("agx.duration_ms", elapsed_ms));
+            s.set_status(Status::Ok);
+            s.end();
+        }
+
         let out = PyDict::new(py);
         out.set_item("answer", final_answer)?;
         out.set_item("iterations", iter_done)?;
         out.set_item("tool_calls", tool_calls_executed)?;
+        out.set_item("duration_ms", elapsed_ms)?;
 
         let py_messages = PyList::empty(py);
         for m in messages.iter() {

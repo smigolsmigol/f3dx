@@ -4,7 +4,7 @@ version.workspace = true
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
-description = "agx Arrow-shaped agent trace store: per-run rows, parquet/DuckDB sinks, polars helpers"
+description = "agx OpenTelemetry span emission. Logfire-compatible, gen_ai.* semconv. Phase G adds Arrow trace store sinks."
 repository.workspace = true
 
 [lib]
@@ -13,6 +13,9 @@ name = "agx_trace"
 [dependencies]
 pyo3 = { workspace = true }
 serde = { workspace = true }
-# Wired in week 7-8:
-# arrow = "53"
-# parquet = "53"
+serde_json = { workspace = true }
+opentelemetry = { version = "0.27", features = ["trace"] }
+opentelemetry_sdk = { version = "0.27", features = ["trace", "rt-tokio"] }
+opentelemetry-otlp = { version = "0.27", default-features = false, features = ["trace", "http-proto", "reqwest-blocking-client", "reqwest-rustls"] }
+opentelemetry-stdout = { version = "0.27", features = ["trace"] }
+once_cell = "1.20"

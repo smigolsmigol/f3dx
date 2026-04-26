@@ -15,3 +15,5 @@ pyo3 = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 ahash = { workspace = true }
+agx-trace = { path = "../agx-trace" }
+opentelemetry = { version = "0.27", features = ["trace"] }
