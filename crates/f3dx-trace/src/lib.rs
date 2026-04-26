@@ -21,12 +21,22 @@ use opentelemetry_otlp::{SpanExporter, WithExportConfig, WithHttpConfig};
 use opentelemetry_sdk::runtime;
 use opentelemetry_sdk::trace::{Tracer, TracerProvider};
 use opentelemetry_sdk::Resource;
-use pyo3::exceptions::PyRuntimeError;
+use pyo3::exceptions::{PyIOError, PyRuntimeError};
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
+use serde_json::Value;
 use std::collections::HashMap;
-use std::sync::Mutex;
+use std::fs::OpenOptions;
+use std::io::Write;
+use std::path::PathBuf;
+use std::sync::{Mutex, OnceLock as StdOnceLock};
 use std::time::Duration;
+
+/// Path of the JSONL trace sink, configured via `configure_traces(path)`.
+/// Phase G V0: append-only JSON-Lines; one row per AgentRuntime.run.
+/// Polars/DuckDB users scan via pl.scan_ndjson / duckdb.read_json.
+/// V0.1 upgrades to Arrow/parquet.
+static JSONL_SINK: StdOnceLock<Mutex<Option<PathBuf>>> = StdOnceLock::new();
 
 static TRACER: OnceCell<Tracer> = OnceCell::new();
 static PROVIDER: OnceCell<Mutex<Option<TracerProvider>>> = OnceCell::new();
@@ -103,6 +113,47 @@ pub fn tracer() -> Option<&'static Tracer> {
     TRACER.get()
 }
 
+/// Configure a JSONL trace sink. Each AgentRuntime.run appends one row.
+/// Path is opened append-only on each emit; safe under concurrent runs.
+/// Set path=None to disable.
+#[pyfunction]
+#[pyo3(signature = (path = None))]
+fn configure_traces(path: Option<String>) -> PyResult<()> {
+    let slot = JSONL_SINK.get_or_init(|| Mutex::new(None));
+    let mut guard = slot.lock().expect("trace sink mutex poisoned");
+    *guard = path.map(PathBuf::from);
+    Ok(())
+}
+
+/// Append one row to the configured JSONL sink (no-op when not configured).
+/// Called from f3dx-rt's AgentRuntime.run on completion.
+pub fn emit_trace_row(row: &Value) {
+    let Some(slot) = JSONL_SINK.get() else { return };
+    let path = match slot.lock() {
+        Ok(g) => match g.as_ref() {
+            Some(p) => p.clone(),
+            None => return,
+        },
+        Err(_) => return,
+    };
+    let line = match serde_json::to_string(row) {
+        Ok(s) => s,
+        Err(_) => return,
+    };
+    let mut f = match OpenOptions::new().append(true).create(true).open(&path) {
+        Ok(f) => f,
+        Err(_) => return,
+    };
+    let _ = writeln!(f, "{}", line);
+}
+
+#[pyfunction]
+fn trace_sink_path() -> Option<String> {
+    let slot = JSONL_SINK.get()?;
+    let guard = slot.lock().ok()?;
+    guard.as_ref().map(|p| p.to_string_lossy().to_string())
+}
+
 /// Smoke-test entry: emit a single test span to verify the configured
 /// exporter works end-to-end. Returns the trace_id as a hex string.
 #[pyfunction]
@@ -130,5 +181,7 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(configure_otel, m)?)?;
     m.add_function(wrap_pyfunction!(shutdown_otel, m)?)?;
     m.add_function(wrap_pyfunction!(emit_test_span, m)?)?;
+    m.add_function(wrap_pyfunction!(configure_traces, m)?)?;
+    m.add_function(wrap_pyfunction!(trace_sink_path, m)?)?;
     Ok(())
 }

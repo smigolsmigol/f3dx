@@ -193,6 +193,30 @@ impl AgentRuntime {
             s.end();
         }
 
+        // Phase G V0: emit one JSONL row per run when a sink is configured.
+        // No-op when configure_traces hasn't been called.
+        let row = serde_json::json!({
+            "ts": std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_secs_f64())
+                .unwrap_or(0.0),
+            "duration_ms": elapsed_ms,
+            "iterations": iter_done,
+            "tool_calls_executed": tool_calls_executed,
+            "concurrent_tool_dispatch": self.concurrent_tool_dispatch,
+            "max_iterations": self.max_iterations,
+            "max_tool_calls": self.max_tool_calls,
+            "system_prompt_chars": self.system_prompt.len(),
+            "output_chars": final_answer.len(),
+            "tool_calls": messages.iter()
+                .flat_map(|m| m.tool_calls.iter().map(|tc| {
+                    serde_json::json!({"name": tc.name, "id": tc.id})
+                }))
+                .collect::<Vec<_>>(),
+            "messages_count": messages.len(),
+        });
+        f3dx_trace::emit_trace_row(&row);
+
         let out = PyDict::new(py);
         out.set_item("answer", final_answer)?;
         out.set_item("iterations", iter_done)?;
