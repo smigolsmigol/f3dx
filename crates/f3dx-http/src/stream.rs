@@ -1,4 +1,4 @@
-//! agx-http SSE streaming.
+//! f3dx-http SSE streaming.
 //!
 //! Three Python-facing streaming classes:
 //!   PyChatCompletionStream         — OpenAI raw chunks (Phase B)
@@ -34,7 +34,7 @@ enum StreamEvent {
 
 // ---------- OpenAI raw streaming ----------
 
-#[pyclass(name = "ChatCompletionStream", module = "agx._agx", unsendable)]
+#[pyclass(name = "ChatCompletionStream", module = "f3dx._f3dx", unsendable)]
 pub struct PyChatCompletionStream {
     rx: Mutex<Receiver<StreamEvent>>,
     _runtime: Arc<Runtime>,
@@ -51,7 +51,7 @@ impl PyChatCompletionStream {
         let runtime_handle = Arc::clone(&runtime);
         runtime_handle.spawn(async move {
             if let Err(e) = pump_openai(client, url, req, tx.clone()).await {
-                let _ = tx.send(StreamEvent::Err(format!("agx-http stream: {e}")));
+                let _ = tx.send(StreamEvent::Err(format!("f3dx-http stream: {e}")));
             }
         });
         Ok(Self {
@@ -121,7 +121,7 @@ impl PyChatCompletionStream {
 // have to: accumulate arguments fragments by index, reassemble the
 // arguments string, json.loads at the end, dispatch on chunk shape.
 
-#[pyclass(name = "AssembledStream", module = "agx._agx", unsendable)]
+#[pyclass(name = "AssembledStream", module = "f3dx._f3dx", unsendable)]
 pub struct PyAssembledStream {
     rx: Mutex<Receiver<StreamEvent>>,
     _runtime: Arc<Runtime>,
@@ -138,7 +138,7 @@ impl PyAssembledStream {
         let runtime_handle = Arc::clone(&runtime);
         runtime_handle.spawn(async move {
             if let Err(e) = pump_openai_assembled(client, url, req, tx.clone()).await {
-                let _ = tx.send(StreamEvent::Err(format!("agx-http stream: {e}")));
+                let _ = tx.send(StreamEvent::Err(format!("f3dx-http stream: {e}")));
             }
         });
         Ok(Self {
@@ -273,7 +273,7 @@ impl PyAssembledStream {
 
 // ---------- Anthropic streaming ----------
 
-#[pyclass(name = "AnthropicStream", module = "agx._agx", unsendable)]
+#[pyclass(name = "AnthropicStream", module = "f3dx._f3dx", unsendable)]
 pub struct PyAnthropicStream {
     rx: Mutex<Receiver<StreamEvent>>,
     _runtime: Arc<Runtime>,
@@ -289,7 +289,7 @@ pub fn spawn_anthropic_pump(
     let runtime_handle = Arc::clone(&runtime);
     runtime_handle.spawn(async move {
         if let Err(e) = pump_anthropic(client, url, req, tx.clone()).await {
-            let _ = tx.send(StreamEvent::Err(format!("agx-http stream: {e}")));
+            let _ = tx.send(StreamEvent::Err(format!("f3dx-http stream: {e}")));
         }
     });
     Ok(PyAnthropicStream {
@@ -364,7 +364,7 @@ fn recv_chunk_to_dict<'py>(
     let event = match event {
         Ok(ev) => ev,
         Err(mpsc::RecvTimeoutError::Timeout) => {
-            return Err(PyRuntimeError::new_err("agx-http stream: timeout"));
+            return Err(PyRuntimeError::new_err("f3dx-http stream: timeout"));
         }
         Err(mpsc::RecvTimeoutError::Disconnected) => {
             return Err(PyStopIteration::new_err(()));

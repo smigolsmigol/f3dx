@@ -12,7 +12,7 @@ from statistics import median
 
 from anthropic import Anthropic as AnthropicPy
 
-import agx
+import f3dx
 from mock_anthropic_server import serve
 
 PORT = 8770
@@ -31,7 +31,7 @@ def consume_anthropic_py(client: AnthropicPy) -> int:
     return count
 
 
-def consume_agx(client: agx.Anthropic) -> int:
+def consume_agx(client: f3dx.Anthropic) -> int:
     stream = client.messages_create_stream({
         "model": "claude-bench-model",
         "max_tokens": 1024,
@@ -57,10 +57,10 @@ def bench(name: str, fn, n_iters: int, n_runs: int = 3) -> float:
 
 
 def main() -> None:
-    print(f"agx version: {agx.__version__}\n")
+    print(f"agx version: {f3dx.__version__}\n")
 
     py_client = AnthropicPy(api_key="test", base_url=f"http://127.0.0.1:{PORT}", timeout=30.0)
-    rs_client = agx.Anthropic(api_key="test", base_url=f"http://127.0.0.1:{PORT}", timeout=30.0, http2=False)
+    rs_client = f3dx.Anthropic(api_key="test", base_url=f"http://127.0.0.1:{PORT}", timeout=30.0, http2=False)
 
     for n_tokens in [50, 200, 500, 1000]:
         srv = serve(PORT, n_tokens)
@@ -72,7 +72,7 @@ def main() -> None:
 
             print(f"== {n_tokens} delta events/request ({n_iters} iters/run x 3 runs) ==")
             py_t = bench("anthropic SDK (python httpx)", lambda: consume_anthropic_py(py_client), n_iters)
-            rs_t = bench("agx.Anthropic (rust reqwest+sse)", lambda: consume_agx(rs_client), n_iters)
+            rs_t = bench("f3dx.Anthropic (rust reqwest+sse)", lambda: consume_agx(rs_client), n_iters)
             speedup = py_t / rs_t
             tag = "WIN" if speedup >= 1.5 else ("wash" if speedup >= 0.9 else "LOSS")
             print(f"  -> agx speedup vs anthropic SDK: {speedup:.2f}x  [{tag}]")

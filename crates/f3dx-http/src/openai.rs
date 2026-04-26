@@ -1,4 +1,4 @@
-//! agx-http OpenAI async client + PyO3 binding.
+//! f3dx-http OpenAI async client + PyO3 binding.
 //!
 //! Async reqwest::Client + per-instance tokio Runtime. The Python surface
 //! is sync (uses runtime.block_on internally) so callers don't have to
@@ -19,9 +19,9 @@ use std::time::Duration;
 use tokio::runtime::Runtime;
 
 const DEFAULT_BASE_URL: &str = "https://api.openai.com/v1";
-const USER_AGENT_STR: &str = concat!("agx-http/", env!("CARGO_PKG_VERSION"));
+const USER_AGENT_STR: &str = concat!("f3dx-http/", env!("CARGO_PKG_VERSION"));
 
-#[pyclass(name = "OpenAIClient", module = "agx._agx")]
+#[pyclass(name = "OpenAIClient", module = "f3dx._f3dx")]
 pub struct PyOpenAIClient {
     client: Arc<Client>,
     runtime: Arc<Runtime>,
@@ -77,7 +77,7 @@ impl PyOpenAIClient {
         let runtime = tokio::runtime::Builder::new_multi_thread()
             .worker_threads(2)
             .enable_all()
-            .thread_name("agx-http")
+            .thread_name("f3dx-http")
             .build()
             .map_err(|e| PyRuntimeError::new_err(format!("tokio runtime build: {e}")))?;
 
@@ -113,7 +113,7 @@ impl PyOpenAIClient {
             })
         });
 
-        let parsed = parsed.map_err(|e| PyRuntimeError::new_err(format!("agx-http: {e}")))?;
+        let parsed = parsed.map_err(|e| PyRuntimeError::new_err(format!("f3dx-http: {e}")))?;
         let out_str = serde_json::to_string(&parsed)
             .map_err(|e| PyRuntimeError::new_err(format!("response serialise: {e}")))?;
         let json_module = py.import("json")?;
@@ -153,7 +153,7 @@ impl PyOpenAIClient {
     ///    "arguments": {parsed dict}, "index": N}
     ///   {"type": "done", "finish_reason": "stop"}
     /// User code never has to accumulate arguments fragments or json.loads
-    /// the assembled string — agx does it Rust-side.
+    /// the assembled string — f3dx does it Rust-side.
     fn chat_completions_create_stream_assembled<'py>(
         &self,
         py: Python<'py>,

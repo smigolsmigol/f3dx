@@ -1,18 +1,18 @@
 [package]
-name = "agx-py"
+name = "f3dx-py"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
-description = "agx Python bindings: bridges agx-rt + agx-http + agx-trace into a single PyO3 module"
+description = "f3dx Python bindings: bridges f3dx-rt + f3dx-http + f3dx-trace into a single PyO3 module"
 repository.workspace = true
 
 [lib]
-name = "_agx"
+name = "_f3dx"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-agx-rt = { path = "../agx-rt" }
-agx-http = { path = "../agx-http" }
-agx-trace = { path = "../agx-trace" }
+f3dx-rt = { path = "../f3dx-rt" }
+f3dx-http = { path = "../f3dx-http" }
+f3dx-trace = { path = "../f3dx-trace" }
 pyo3 = { workspace = true, features = ["extension-module"] }

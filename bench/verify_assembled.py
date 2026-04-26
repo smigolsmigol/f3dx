@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import json
 
-import agx
+import f3dx
 from mock_openai_tool_server import ARGS_JSON, serve
 
 PORT = 8771
@@ -22,10 +22,10 @@ N_FRAGMENTS = 12  # fragment the args string into 12 pieces
 
 
 def main() -> None:
-    print(f"agx version: {agx.__version__}\n")
+    print(f"agx version: {f3dx.__version__}\n")
     srv = serve(PORT, N_FRAGMENTS)
     try:
-        client = agx.OpenAI(
+        client = f3dx.OpenAI(
             api_key="test",
             base_url=f"http://127.0.0.1:{PORT}/v1",
             timeout=30.0,

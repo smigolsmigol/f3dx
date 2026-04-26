@@ -2,7 +2,7 @@
 
 Configures the stdout exporter, runs a real agent workload (3 turns,
 2 tools per turn, with sleep-tool simulating I/O), and prints the
-emitted span. Verifies the span carries gen_ai.* + agx.* attributes.
+emitted span. Verifies the span carries gen_ai.* + f3dx.* attributes.
 """
 
 from __future__ import annotations
@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 import time
 
-import agx
+import f3dx
 
 
 def io_search(args_json: str) -> str:
@@ -38,13 +38,13 @@ def make_mock_responses(turns: int, tools_per_turn: int) -> list[str]:
 
 
 def main() -> None:
-    print(f"agx version: {agx.__version__}\n")
+    print(f"agx version: {f3dx.__version__}\n")
 
     # Configure OTel for stdout (no real Logfire token needed for the smoke)
-    agx._agx.configure_otel(service_name="agx-runtime-smoke", stdout=True)
+    f3dx._f3dx.configure_otel(service_name="agx-runtime-smoke", stdout=True)
     print("OTel configured (stdout exporter)\n")
 
-    rt = agx.AgentRuntime(
+    rt = f3dx.AgentRuntime(
         system_prompt="You are a smoke test agent.",
         max_iterations=10,
         max_tool_calls=20,
@@ -63,7 +63,7 @@ def main() -> None:
 
     # Force-flush so the stdout exporter prints before we exit
     print("Flushing OTel...")
-    agx._agx.shutdown_otel()
+    f3dx._f3dx.shutdown_otel()
     print("(span block printed above by stdout exporter)")
 
 

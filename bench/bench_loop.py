@@ -17,7 +17,7 @@ import time
 from statistics import median
 from typing import Callable
 
-import agx
+import f3dx
 
 
 # ---------- pre-baked mock responses (one per loop iteration) ----------
@@ -84,7 +84,7 @@ def py_run(
     max_iterations: int = 10,
     max_tool_calls: int = 20,
 ) -> dict:
-    """Reference implementation matching agx.AgentRuntime.run semantics."""
+    """Reference implementation matching f3dx.AgentRuntime.run semantics."""
     messages: list[dict] = []
     if system_prompt:
         messages.append({"role": "system", "content": system_prompt})
@@ -161,12 +161,12 @@ def bench(name: str, fn, n_iters: int = 200, n_runs: int = 5) -> float:
 
 
 def main() -> None:
-    print(f"agx version: {agx.__version__}\n")
+    print(f"agx version: {f3dx.__version__}\n")
 
     system_prompt = "You are a forensic analyst."
     user_prompt = "Investigate the suspect's call patterns."
     tools_py = {"fake_search": fake_search}
-    rt = agx.AgentRuntime(system_prompt=system_prompt, max_iterations=20, max_tool_calls=50)
+    rt = f3dx.AgentRuntime(system_prompt=system_prompt, max_iterations=20, max_tool_calls=50)
 
     for turns, tools_per_turn in [(3, 1), (5, 2), (10, 3), (20, 5)]:
         mock = make_mock_responses(turns, tools_per_turn)
@@ -205,7 +205,7 @@ def main() -> None:
             ),
         )
         rs_t = bench(
-            "agx.AgentRuntime.run",
+            "f3dx.AgentRuntime.run",
             lambda: rt.run(user_prompt, tools_py, mock),
         )
         speedup = py_t / rs_t

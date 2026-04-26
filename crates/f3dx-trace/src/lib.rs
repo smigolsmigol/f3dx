@@ -1,8 +1,8 @@
-//! agx-trace — OpenTelemetry span emission for agx.
+//! f3dx-trace — OpenTelemetry span emission for f3dx.
 //!
-//! Phase F: wire OTel + OTLP/HTTP+protobuf exporter so every agx run
+//! Phase F: wire OTel + OTLP/HTTP+protobuf exporter so every f3dx run
 //! emits proper gen_ai.* semconv spans. Configurable via the Python
-//! `agx.configure_otel(endpoint, headers, service_name, stdout)` function.
+//! `f3dx.configure_otel(endpoint, headers, service_name, stdout)` function.
 //!
 //! Two backend modes:
 //!   1. OTLP/HTTP -> any OTel-compatible collector incl. Pydantic Logfire
@@ -40,7 +40,7 @@ static PROVIDER: OnceCell<Mutex<Option<TracerProvider>>> = OnceCell::new();
 ///   service_name: OpenTelemetry service.name resource attribute
 ///   stdout:       if True, also export to stdout for debugging
 #[pyfunction]
-#[pyo3(signature = (endpoint = None, headers = None, service_name = String::from("agx"), stdout = false))]
+#[pyo3(signature = (endpoint = None, headers = None, service_name = String::from("f3dx"), stdout = false))]
 fn configure_otel(
     endpoint: Option<String>,
     headers: Option<HashMap<String, String>>,
@@ -54,7 +54,7 @@ fn configure_otel(
     let resource = Resource::new(vec![
         KeyValue::new("service.name", service_name.clone()),
         KeyValue::new("service.version", env!("CARGO_PKG_VERSION")),
-        KeyValue::new("agx.runtime", "rust"),
+        KeyValue::new("f3dx.runtime", "rust"),
     ]);
 
     let mut builder = TracerProvider::builder().with_config(
@@ -125,7 +125,7 @@ fn emit_test_span<'py>(py: Python<'py>, name: String) -> PyResult<Bound<'py, PyD
     Ok(out)
 }
 
-/// Register agx-trace's pyfunctions into a parent Python module.
+/// Register f3dx-trace's pyfunctions into a parent Python module.
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(configure_otel, m)?)?;
     m.add_function(wrap_pyfunction!(shutdown_otel, m)?)?;

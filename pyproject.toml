@@ -3,9 +3,9 @@ requires = ["maturin>=1.13,<2.0"]
 build-backend = "maturin"
 
 [project]
-name = "agx"
+name = "f3dx"
 version = "0.0.3"
-description = "Rust-core runtime for pydantic-ai. Polars for agents."
+description = "F3D1 Rust-core runtime for pydantic-ai. Polars for agents."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
@@ -28,7 +28,7 @@ dev = [
 ]
 
 [tool.maturin]
-manifest-path = "crates/agx-py/Cargo.toml"
+manifest-path = "crates/f3dx-py/Cargo.toml"
 features = ["pyo3/extension-module"]
-module-name = "agx._agx"
+module-name = "f3dx._f3dx"
 python-source = "python"

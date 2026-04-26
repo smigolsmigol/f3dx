@@ -1,4 +1,4 @@
-//! agx-http Anthropic Messages client + PyO3 binding.
+//! f3dx-http Anthropic Messages client + PyO3 binding.
 //!
 //! Drop-in shape for `from anthropic import Anthropic`. Same constructor
 //! surface (api_key, base_url, timeout). Same `messages.create()` /
@@ -24,9 +24,9 @@ use tokio::runtime::Runtime;
 
 const DEFAULT_BASE_URL: &str = "https://api.anthropic.com";
 const DEFAULT_ANTHROPIC_VERSION: &str = "2023-06-01";
-const USER_AGENT_STR: &str = concat!("agx-http/", env!("CARGO_PKG_VERSION"));
+const USER_AGENT_STR: &str = concat!("f3dx-http/", env!("CARGO_PKG_VERSION"));
 
-#[pyclass(name = "AnthropicClient", module = "agx._agx")]
+#[pyclass(name = "AnthropicClient", module = "f3dx._f3dx")]
 pub struct PyAnthropicClient {
     client: Arc<Client>,
     runtime: Arc<Runtime>,
@@ -91,7 +91,7 @@ impl PyAnthropicClient {
         let runtime = tokio::runtime::Builder::new_multi_thread()
             .worker_threads(2)
             .enable_all()
-            .thread_name("agx-http-anthropic")
+            .thread_name("f3dx-http-anthropic")
             .build()
             .map_err(|e| PyRuntimeError::new_err(format!("tokio runtime build: {e}")))?;
 
@@ -130,7 +130,7 @@ impl PyAnthropicClient {
             })
         });
 
-        let parsed = parsed.map_err(|e| PyRuntimeError::new_err(format!("agx-http: {e}")))?;
+        let parsed = parsed.map_err(|e| PyRuntimeError::new_err(format!("f3dx-http: {e}")))?;
         value_to_pydict(py, &parsed)
     }
 

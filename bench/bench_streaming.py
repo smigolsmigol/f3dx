@@ -17,7 +17,7 @@ from statistics import median
 
 from openai import OpenAI as OpenAIPy
 
-import agx
+import f3dx
 from mock_openai_server import serve
 
 PORT = 8767
@@ -35,7 +35,7 @@ def consume_openai_py(client: OpenAIPy, n_chunks: int) -> int:
     return count
 
 
-def consume_agx(client: agx.OpenAI, n_chunks: int) -> int:
+def consume_agx(client: f3dx.OpenAI, n_chunks: int) -> int:
     stream = client.chat_completions_create_stream(
         {
             "model": "agx-bench-model",
@@ -62,10 +62,10 @@ def bench(name: str, fn, n_iters: int, n_runs: int = 3) -> float:
 
 
 def main() -> None:
-    print(f"agx version: {agx.__version__}\n")
+    print(f"agx version: {f3dx.__version__}\n")
 
     py_client = OpenAIPy(api_key="test", base_url=f"http://127.0.0.1:{PORT}/v1", timeout=30.0)
-    rs_client = agx.OpenAI(api_key="test", base_url=f"http://127.0.0.1:{PORT}/v1", timeout=30.0, http2=False)
+    rs_client = f3dx.OpenAI(api_key="test", base_url=f"http://127.0.0.1:{PORT}/v1", timeout=30.0, http2=False)
 
     for n_chunks in [50, 200, 500, 1000]:
         # Restart server so it serves the new chunk count
@@ -80,7 +80,7 @@ def main() -> None:
 
             print(f"== {n_chunks} chunks/request ({n_iters} iters/run x 3 runs) ==")
             py_t = bench("openai SDK (python httpx)", lambda: consume_openai_py(py_client, n_chunks), n_iters)
-            rs_t = bench("agx.OpenAI (rust reqwest+sse)", lambda: consume_agx(rs_client, n_chunks), n_iters)
+            rs_t = bench("f3dx.OpenAI (rust reqwest+sse)", lambda: consume_agx(rs_client, n_chunks), n_iters)
             speedup = py_t / rs_t
             tag = "WIN" if speedup >= 1.5 else ("wash" if speedup >= 0.9 else "LOSS")
             print(f"  -> agx speedup vs openai SDK: {speedup:.2f}x  [{tag}]")

@@ -1,14 +1,14 @@
 [package]
-name = "agx-http"
+name = "f3dx-http"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
-description = "agx LLM HTTP client: reqwest + native SSE + streaming JSON validation"
+description = "f3dx LLM HTTP client: reqwest + native SSE + streaming JSON validation"
 repository.workspace = true
 
 [lib]
-name = "agx_http"
+name = "f3dx_http"
 
 [dependencies]
 pyo3 = { workspace = true }

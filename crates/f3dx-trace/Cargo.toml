@@ -1,14 +1,14 @@
 [package]
-name = "agx-trace"
+name = "f3dx-trace"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
-description = "agx OpenTelemetry span emission. Logfire-compatible, gen_ai.* semconv. Phase G adds Arrow trace store sinks."
+description = "f3dx OpenTelemetry span emission. Logfire-compatible, gen_ai.* semconv."
 repository.workspace = true
 
 [lib]
-name = "agx_trace"
+name = "f3dx_trace"
 
 [dependencies]
 pyo3 = { workspace = true }

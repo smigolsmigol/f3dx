@@ -22,7 +22,7 @@ import time
 from statistics import median
 from typing import Callable
 
-import agx
+import f3dx
 
 
 def make_mock_responses(turns: int, tools_per_turn: int) -> list[str]:
@@ -216,19 +216,19 @@ def bench(name: str, fn, n_iters: int = 20, n_runs: int = 3) -> float:
 
 
 def main() -> None:
-    print(f"agx version: {agx.__version__}\n")
+    print(f"agx version: {f3dx.__version__}\n")
 
     system_prompt = "You are a forensic analyst."
     user_prompt = "Investigate the call patterns."
     tools_py = {"io_search": io_search}
 
-    rt_seq = agx.AgentRuntime(
+    rt_seq = f3dx.AgentRuntime(
         system_prompt=system_prompt,
         max_iterations=20,
         max_tool_calls=50,
         concurrent_tool_dispatch=False,
     )
-    rt_par = agx.AgentRuntime(
+    rt_par = f3dx.AgentRuntime(
         system_prompt=system_prompt,
         max_iterations=20,
         max_tool_calls=50,

@@ -1,19 +1,19 @@
 [package]
-name = "agx-rt"
+name = "f3dx-rt"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
-description = "agx agent runtime: whole-loop state machine + concurrent tool dispatch"
+description = "f3dx agent runtime: whole-loop state machine + concurrent tool dispatch"
 repository.workspace = true
 
 [lib]
-name = "agx_rt"
+name = "f3dx_rt"
 
 [dependencies]
 pyo3 = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 ahash = { workspace = true }
-agx-trace = { path = "../agx-trace" }
+f3dx-trace = { path = "../f3dx-trace" }
 opentelemetry = { version = "0.27", features = ["trace"] }

@@ -14,7 +14,7 @@ from __future__ import annotations
 import time
 from statistics import median
 
-import agx
+import f3dx
 
 
 def py_build_next_request(prior: list[dict], results: dict[str, str]) -> list[dict]:
@@ -76,7 +76,7 @@ def bench(name: str, fn, *args, n_iters: int = 1000, n_runs: int = 5) -> float:
 
 
 def main() -> None:
-    print(f"agx version: {agx.__version__}\n")
+    print(f"agx version: {f3dx.__version__}\n")
 
     for turns, tools in [(5, 1), (10, 3), (20, 5), (50, 5)]:
         prior, results = make_history(turns, tools)
@@ -84,12 +84,12 @@ def main() -> None:
         print(f"== {turns} turns x {tools} tools/turn = {n_msgs_after} messages after splice ==")
 
         py_t = bench("py_build_next_request", py_build_next_request, prior, results)
-        rs_t = bench("agx.build_next_request", agx.build_next_request, prior, results)
+        rs_t = bench("f3dx.build_next_request", f3dx.build_next_request, prior, results)
         print(f"  -> rust speedup: {py_t / rs_t:.2f}x\n")
 
         msgs_after = py_build_next_request(prior, results)
         py_t = bench("py_render_messages", py_render_messages, msgs_after)
-        rs_t = bench("agx.render_messages", agx.render_messages, msgs_after)
+        rs_t = bench("f3dx.render_messages", f3dx.render_messages, msgs_after)
         print(f"  -> rust speedup: {py_t / rs_t:.2f}x\n")
 
 

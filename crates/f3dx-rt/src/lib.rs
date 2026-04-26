@@ -1,10 +1,10 @@
-//! agx-rt — agent runtime core.
+//! f3dx-rt — agent runtime core.
 //!
 //! Whole-loop in Rust + concurrent tool dispatch via Python::allow_threads.
 //! State lives in Rust for the duration of an agent run. Boundary crossings:
 //!   1. Tool function calls (Python tool callables — fanned out across OS
 //!      threads when the model returns multiple tool_calls per turn)
-//!   2. Model HTTP request (mocked here; real HTTP comes from agx-http)
+//!   2. Model HTTP request (mocked here; real HTTP comes from f3dx-http)
 //!   3. Final result return
 //!
 //! Concurrent dispatch unlocks the real win: Python tools that do I/O
@@ -90,12 +90,12 @@ impl AgentRuntime {
         mock_responses: Bound<'py, PyList>,
     ) -> PyResult<Bound<'py, PyDict>> {
         let t_start = Instant::now();
-        let mut span = agx_trace::tracer().map(|t| {
-            let mut s = t.start("agx.agent_runtime.run");
-            s.set_attribute(KeyValue::new("gen_ai.system", "agx"));
-            s.set_attribute(KeyValue::new("agx.concurrent_tool_dispatch", self.concurrent_tool_dispatch));
-            s.set_attribute(KeyValue::new("agx.max_iterations", self.max_iterations as i64));
-            s.set_attribute(KeyValue::new("agx.max_tool_calls", self.max_tool_calls as i64));
+        let mut span = f3dx_trace::tracer().map(|t| {
+            let mut s = t.start("f3dx.agent_runtime.run");
+            s.set_attribute(KeyValue::new("gen_ai.system", "f3dx"));
+            s.set_attribute(KeyValue::new("f3dx.concurrent_tool_dispatch", self.concurrent_tool_dispatch));
+            s.set_attribute(KeyValue::new("f3dx.max_iterations", self.max_iterations as i64));
+            s.set_attribute(KeyValue::new("f3dx.max_tool_calls", self.max_tool_calls as i64));
             s.set_attribute(KeyValue::new("gen_ai.prompt.length_chars", prompt.len() as i64));
             s
         });
@@ -185,10 +185,10 @@ impl AgentRuntime {
 
         let elapsed_ms = t_start.elapsed().as_secs_f64() * 1000.0;
         if let Some(s) = span.as_mut() {
-            s.set_attribute(KeyValue::new("agx.iterations", iter_done as i64));
-            s.set_attribute(KeyValue::new("agx.tool_calls_executed", tool_calls_executed as i64));
-            s.set_attribute(KeyValue::new("agx.output.length_chars", final_answer.len() as i64));
-            s.set_attribute(KeyValue::new("agx.duration_ms", elapsed_ms));
+            s.set_attribute(KeyValue::new("f3dx.iterations", iter_done as i64));
+            s.set_attribute(KeyValue::new("f3dx.tool_calls_executed", tool_calls_executed as i64));
+            s.set_attribute(KeyValue::new("f3dx.output.length_chars", final_answer.len() as i64));
+            s.set_attribute(KeyValue::new("f3dx.duration_ms", elapsed_ms));
             s.set_status(Status::Ok);
             s.end();
         }
@@ -290,8 +290,8 @@ fn call_tool(
     }
 }
 
-/// Register agx-rt's pyclasses into a parent Python module.
-/// The agx-py crate calls this from its #[pymodule] root.
+/// Register f3dx-rt's pyclasses into a parent Python module.
+/// The f3dx-py crate calls this from its #[pymodule] root.
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<AgentRuntime>()?;
     Ok(())

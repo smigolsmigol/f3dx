@@ -1,14 +1,14 @@
 [workspace]
 resolver = "2"
-members = ["crates/agx-py", "crates/agx-rt", "crates/agx-http", "crates/agx-trace"]
+members = ["crates/f3dx-py", "crates/f3dx-rt", "crates/f3dx-http", "crates/f3dx-trace"]
 
 [workspace.package]
 version = "0.0.3"
 edition = "2024"
 authors = ["Federico Coccoli <fed1@f3d1.dev>"]
-description = "Rust-core runtime for pydantic-ai. Polars for agents."
+description = "F3D1 Rust-core runtime for pydantic-ai. Polars for agents."
 license = "MIT"
-repository = "https://github.com/smigolsmigol/agx"
+repository = "https://github.com/smigolsmigol/f3dx"
 
 [workspace.dependencies]
 pyo3 = { version = "0.23", features = ["abi3-py310"] }
