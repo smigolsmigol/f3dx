@@ -288,7 +288,21 @@ fn dispatch_parallel(
                 .collect();
             handles
                 .into_iter()
-                .map(|h| h.join().expect("tool dispatch thread panicked"))
+                .zip(calls.iter())
+                .map(|(h, tc)| match h.join() {
+                    Ok(pair) => pair,
+                    Err(payload) => {
+                        let msg = panic_payload_msg(&payload);
+                        (
+                            tc.id.clone(),
+                            format!(
+                                r#"{{"error":"tool {} panicked: {}"}}"#,
+                                tc.name.replace('"', "\\\""),
+                                msg.replace('"', "\\\"")
+                            ),
+                        )
+                    }
+                })
                 .collect()
         })
     })
@@ -311,6 +325,16 @@ fn call_tool(
             }
         }
         None => format!(r#"{{"error":"unknown tool {name}"}}"#),
+    }
+}
+
+fn panic_payload_msg(payload: &Box<dyn std::any::Any + Send>) -> String {
+    if let Some(s) = payload.downcast_ref::<&'static str>() {
+        (*s).to_string()
+    } else if let Some(s) = payload.downcast_ref::<String>() {
+        s.clone()
+    } else {
+        "unknown panic payload".to_string()
     }
 }
 
