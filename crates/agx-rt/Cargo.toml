@@ -1,0 +1,17 @@
+[package]
+name = "agx-rt"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "agx agent runtime: whole-loop state machine + concurrent tool dispatch"
+repository.workspace = true
+
+[lib]
+name = "agx_rt"
+
+[dependencies]
+pyo3 = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+ahash = { workspace = true }

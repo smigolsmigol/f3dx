@@ -1,16 +1,16 @@
-//! agx — Rust-core runtime for pydantic-ai.
+//! agx-rt — agent runtime core.
 //!
-//! Day-3 architecture: whole-loop in Rust + concurrent tool dispatch via
-//! Python::allow_threads. State lives in Rust. The boundary is crossed only at:
+//! Whole-loop in Rust + concurrent tool dispatch via Python::allow_threads.
+//! State lives in Rust for the duration of an agent run. Boundary crossings:
 //!   1. Tool function calls (Python tool callables — fanned out across OS
 //!      threads when the model returns multiple tool_calls per turn)
-//!   2. Model HTTP request (will move to reqwest in spike 4, mocked here)
+//!   2. Model HTTP request (mocked here; real HTTP comes from agx-http)
 //!   3. Final result return
 //!
 //! Concurrent dispatch unlocks the real win: Python tools that do I/O
 //! (HTTP, sleep, file) release the GIL during the wait. N tools each
-//! taking T ms run in ~T ms wall-clock, not N*T ms. This is the wedge
-//! Python pydantic-ai cannot hit because asyncio is single-threaded.
+//! taking T ms run in ~T ms wall-clock. Python pydantic-ai cannot hit
+//! this because asyncio dispatches sequentially within one event loop.
 
 use ahash::AHashMap;
 use pyo3::prelude::*;
@@ -65,7 +65,7 @@ impl AgentRuntime {
         max_tool_calls = 20,
         concurrent_tool_dispatch = false,
     ))]
-    fn new(
+    pub fn new(
         system_prompt: String,
         max_iterations: usize,
         max_tool_calls: usize,
@@ -143,7 +143,6 @@ impl AgentRuntime {
                 break;
             }
 
-            // ---- tool dispatch: parallel if enabled and >1 call ----
             let calls_to_run: Vec<ToolCallReq> = response
                 .tool_calls
                 .iter()
@@ -223,10 +222,6 @@ fn dispatch_parallel(
     tool_table: &Arc<AHashMap<String, Py<PyAny>>>,
     calls: &[ToolCallReq],
 ) -> Vec<(String, String)> {
-    // Release the GIL while the threads run. Each thread will re-acquire
-    // it via Python::with_gil to actually call into Python. Real
-    // parallelism comes from Python tools releasing the GIL during their
-    // own I/O (httpx requests, sleep, file).
     py.allow_threads(|| {
         thread::scope(|s| {
             let handles: Vec<_> = calls
@@ -270,9 +265,9 @@ fn call_tool(
     }
 }
 
-#[pymodule]
-fn _agx(m: &Bound<'_, PyModule>) -> PyResult<()> {
+/// Register agx-rt's pyclasses into a parent Python module.
+/// The agx-py crate calls this from its #[pymodule] root.
+pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<AgentRuntime>()?;
-    m.add("__version__", env!("CARGO_PKG_VERSION"))?;
     Ok(())
 }

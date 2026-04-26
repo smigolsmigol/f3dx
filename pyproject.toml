@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "agx"
-version = "0.0.1"
+version = "0.0.3"
 description = "Rust-core runtime for pydantic-ai. Polars for agents."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -28,6 +28,7 @@ dev = [
 ]
 
 [tool.maturin]
+manifest-path = "crates/agx-py/Cargo.toml"
 features = ["pyo3/extension-module"]
 module-name = "agx._agx"
 python-source = "python"

@@ -1,0 +1,18 @@
+[package]
+name = "agx-py"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "agx Python bindings: bridges agx-rt + agx-http + agx-trace into a single PyO3 module"
+repository.workspace = true
+
+[lib]
+name = "_agx"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+agx-rt = { path = "../agx-rt" }
+agx-http = { path = "../agx-http" }
+agx-trace = { path = "../agx-trace" }
+pyo3 = { workspace = true, features = ["extension-module"] }

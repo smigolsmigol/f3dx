@@ -1,0 +1,18 @@
+[package]
+name = "agx-trace"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "agx Arrow-shaped agent trace store: per-run rows, parquet/DuckDB sinks, polars helpers"
+repository.workspace = true
+
+[lib]
+name = "agx_trace"
+
+[dependencies]
+pyo3 = { workspace = true }
+serde = { workspace = true }
+# Wired in week 7-8:
+# arrow = "53"
+# parquet = "53"

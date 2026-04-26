@@ -1,21 +1,21 @@
-[package]
-name = "agx"
-version = "0.0.2"
+[workspace]
+resolver = "2"
+members = ["crates/agx-py", "crates/agx-rt", "crates/agx-http", "crates/agx-trace"]
+
+[workspace.package]
+version = "0.0.3"
 edition = "2024"
 authors = ["Federico Coccoli <fed1@f3d1.dev>"]
 description = "Rust-core runtime for pydantic-ai. Polars for agents."
 license = "MIT"
 repository = "https://github.com/smigolsmigol/agx"
 
-[lib]
-name = "_agx"
-crate-type = ["cdylib", "rlib"]
-
-[dependencies]
-pyo3 = { version = "0.23", features = ["extension-module", "abi3-py310"] }
+[workspace.dependencies]
+pyo3 = { version = "0.23", features = ["abi3-py310"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 ahash = "0.8"
+bytes = "1.10"
 
 [profile.release]
 lto = "fat"
