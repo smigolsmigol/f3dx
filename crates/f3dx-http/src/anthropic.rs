@@ -183,9 +183,9 @@ impl PyAnthropicClient {
         let temperature = req.get("temperature").and_then(|v| v.as_f64()).map(|x| x as f32);
         let top_p = req.get("top_p").and_then(|v| v.as_f64()).map(|x| x as f32);
         let max_tokens = req.get("max_tokens").and_then(|v| v.as_u64()).map(|x| x as u32);
-        if let Some(mut s) = otel::start_http_span("messages", "anthropic", &model) {
-            otel::add_request_params(&mut s, temperature, top_p, max_tokens, Some(true));
-            otel::finish_ok(s);
+        let mut span = otel::start_http_span("messages", "anthropic", &model);
+        if let Some(s) = span.as_mut() {
+            otel::add_request_params(s, temperature, top_p, max_tokens, Some(true));
         }
 
         let stream = spawn_anthropic_pump(
@@ -193,6 +193,7 @@ impl PyAnthropicClient {
             Arc::clone(&self.runtime),
             url,
             req,
+            span,
         )?;
         Py::new(py, stream)
     }

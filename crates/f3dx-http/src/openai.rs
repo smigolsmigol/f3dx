@@ -154,13 +154,17 @@ impl PyOpenAIClient {
     ) -> PyResult<Py<PyChatCompletionStream>> {
         let mut req = parse_request(py, request)?;
         req.stream = Some(true);
+        // Auto-enable usage in the stream so the closing chunk carries
+        // gen_ai.usage.* tokens. User can override by passing their own
+        // stream_options. OpenAI-compatible endpoints that don't know the
+        // flag will ignore it.
+        req.extra
+            .entry("stream_options".to_string())
+            .or_insert_with(|| serde_json::json!({"include_usage": true}));
 
-        // HTTP-level span: stream open. Closed when the stream task ends
-        // (token-usage attrs not available without per-vendor opt-in flags;
-        // skipped in V0.1, added in V0.2 when usage chunks arrive).
-        if let Some(mut s) = otel::start_http_span("chat", "openai", &req.model) {
-            otel::add_request_params(&mut s, req.temperature, req.top_p, req.max_tokens, Some(true));
-            otel::finish_ok(s);
+        let mut span = otel::start_http_span("chat", "openai", &req.model);
+        if let Some(s) = span.as_mut() {
+            otel::add_request_params(s, req.temperature, req.top_p, req.max_tokens, Some(true));
         }
 
         let url = format!("{}/chat/completions", self.base_url);
@@ -169,6 +173,7 @@ impl PyOpenAIClient {
             Arc::clone(&self.runtime),
             url,
             req,
+            span,
         )
         .map(|s| Py::new(py, s))
         .and_then(|r| r)
@@ -189,12 +194,15 @@ impl PyOpenAIClient {
     ) -> PyResult<Py<PyAssembledStream>> {
         let mut req = parse_request(py, request)?;
         req.stream = Some(true);
+        req.extra
+            .entry("stream_options".to_string())
+            .or_insert_with(|| serde_json::json!({"include_usage": true}));
 
-        if let Some(mut s) = otel::start_http_span("chat", "openai", &req.model) {
+        let mut span = otel::start_http_span("chat", "openai", &req.model);
+        if let Some(s) = span.as_mut() {
             use opentelemetry::trace::Span as _;
-            otel::add_request_params(&mut s, req.temperature, req.top_p, req.max_tokens, Some(true));
+            otel::add_request_params(s, req.temperature, req.top_p, req.max_tokens, Some(true));
             s.set_attribute(opentelemetry::KeyValue::new("f3dx.assembled", true));
-            otel::finish_ok(s);
         }
 
         let url = format!("{}/chat/completions", self.base_url);
@@ -203,6 +211,7 @@ impl PyOpenAIClient {
             Arc::clone(&self.runtime),
             url,
             req,
+            span,
         )
         .map(|s| Py::new(py, s))
         .and_then(|r| r)

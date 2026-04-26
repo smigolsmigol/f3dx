@@ -11,6 +11,7 @@
 //! iterator pulls chunks via .recv() with the GIL released, so concurrent
 //! threads can run.
 
+use crate::otel::{self, SpanT};
 use crate::request::ChatCompletionRequest;
 use crate::response::ChatCompletionChunk;
 use eventsource_stream::Eventsource;
@@ -46,12 +47,19 @@ impl PyChatCompletionStream {
         runtime: Arc<Runtime>,
         url: String,
         req: ChatCompletionRequest,
+        span: Option<SpanT>,
     ) -> PyResult<Self> {
         let (tx, rx) = mpsc::channel::<StreamEvent>();
         let runtime_handle = Arc::clone(&runtime);
         runtime_handle.spawn(async move {
-            if let Err(e) = pump_openai(client, url, req, tx.clone()).await {
+            let mut span = span;
+            if let Err(e) = pump_openai(client, url, req, tx.clone(), &mut span).await {
+                if let Some(s) = span.take() {
+                    otel::finish_err(s, format!("{e}"));
+                }
                 let _ = tx.send(StreamEvent::Err(format!("f3dx-http stream: {e}")));
+            } else if let Some(s) = span.take() {
+                otel::finish_ok(s);
             }
         });
         Ok(Self {
@@ -66,6 +74,7 @@ async fn pump_openai(
     url: String,
     req: ChatCompletionRequest,
     tx: Sender<StreamEvent>,
+    span: &mut Option<SpanT>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let resp = client
         .post(&url)
@@ -82,7 +91,13 @@ async fn pump_openai(
                     let _ = tx.send(StreamEvent::Done);
                     return Ok(());
                 }
-                let _: Result<ChatCompletionChunk, _> = serde_json::from_str(&ev.data);
+                // Try to extract usage attrs (OpenAI emits a final chunk with usage
+                // when stream_options.include_usage=true). Cheap parse.
+                if let (Some(s), Ok(parsed)) =
+                    (span.as_mut(), serde_json::from_str::<Value>(&ev.data))
+                {
+                    otel::add_openai_response(s, &parsed);
+                }
                 if tx.send(StreamEvent::Chunk(ev.data)).is_err() {
                     return Ok(());
                 }
@@ -133,12 +148,19 @@ impl PyAssembledStream {
         runtime: Arc<Runtime>,
         url: String,
         req: ChatCompletionRequest,
+        span: Option<SpanT>,
     ) -> PyResult<Self> {
         let (tx, rx) = mpsc::channel::<StreamEvent>();
         let runtime_handle = Arc::clone(&runtime);
         runtime_handle.spawn(async move {
-            if let Err(e) = pump_openai_assembled(client, url, req, tx.clone()).await {
+            let mut span = span;
+            if let Err(e) = pump_openai_assembled(client, url, req, tx.clone(), &mut span).await {
+                if let Some(s) = span.take() {
+                    otel::finish_err(s, format!("{e}"));
+                }
                 let _ = tx.send(StreamEvent::Err(format!("f3dx-http stream: {e}")));
+            } else if let Some(s) = span.take() {
+                otel::finish_ok(s);
             }
         });
         Ok(Self {
@@ -160,6 +182,7 @@ async fn pump_openai_assembled(
     url: String,
     req: ChatCompletionRequest,
     tx: Sender<StreamEvent>,
+    span: &mut Option<SpanT>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let resp = client
         .post(&url)
@@ -183,6 +206,14 @@ async fn pump_openai_assembled(
                     Ok(c) => c,
                     Err(_) => continue, // pass through bad-shape chunks silently
                 };
+
+                // Apply usage attrs whenever they appear (final chunk if
+                // stream_options.include_usage=true)
+                if let (Some(s), Ok(parsed)) =
+                    (span.as_mut(), serde_json::from_str::<Value>(&ev.data))
+                {
+                    otel::add_openai_response(s, &parsed);
+                }
 
                 for choice in chunk.choices.iter() {
                     if let Some(reason) = choice.finish_reason.clone() {
@@ -284,12 +315,19 @@ pub fn spawn_anthropic_pump(
     runtime: Arc<Runtime>,
     url: String,
     req: Value,
+    span: Option<SpanT>,
 ) -> PyResult<PyAnthropicStream> {
     let (tx, rx) = mpsc::channel::<StreamEvent>();
     let runtime_handle = Arc::clone(&runtime);
     runtime_handle.spawn(async move {
-        if let Err(e) = pump_anthropic(client, url, req, tx.clone()).await {
+        let mut span = span;
+        if let Err(e) = pump_anthropic(client, url, req, tx.clone(), &mut span).await {
+            if let Some(s) = span.take() {
+                otel::finish_err(s, format!("{e}"));
+            }
             let _ = tx.send(StreamEvent::Err(format!("f3dx-http stream: {e}")));
+        } else if let Some(s) = span.take() {
+            otel::finish_ok(s);
         }
     });
     Ok(PyAnthropicStream {
@@ -303,6 +341,7 @@ async fn pump_anthropic(
     url: String,
     req: Value,
     tx: Sender<StreamEvent>,
+    span: &mut Option<SpanT>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let resp = client
         .post(&url)
@@ -315,6 +354,24 @@ async fn pump_anthropic(
     while let Some(event) = sse.next().await {
         match event {
             Ok(ev) => {
+                // Usage lands in two places: message_start.message.usage (input_tokens),
+                // message_delta.usage (output_tokens). Cheap parse + apply.
+                if matches!(ev.event.as_str(), "message_start" | "message_delta") {
+                    if let (Some(s), Ok(parsed)) =
+                        (span.as_mut(), serde_json::from_str::<Value>(&ev.data))
+                    {
+                        // message_start nests usage under message.usage
+                        let normalised = if ev.event == "message_start" {
+                            parsed
+                                .get("message")
+                                .cloned()
+                                .unwrap_or(parsed.clone())
+                        } else {
+                            parsed.clone()
+                        };
+                        otel::add_anthropic_response(s, &normalised);
+                    }
+                }
                 if ev.event == "message_stop" {
                     if tx.send(StreamEvent::Chunk(ev.data)).is_err() {
                         return Ok(());
