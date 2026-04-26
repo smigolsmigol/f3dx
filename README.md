@@ -1,6 +1,6 @@
 # f3dx
 
-F3D1 Rust-core runtime for [pydantic-ai](https://github.com/pydantic/pydantic-ai). Polars for agents.
+f3d1 Rust-core runtime for [pydantic-ai](https://github.com/pydantic/pydantic-ai). Polars for agents.
 
 ```bash
 pip install f3dx
