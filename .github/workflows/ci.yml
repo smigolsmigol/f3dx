@@ -77,3 +77,6 @@ jobs:
 
       - name: Bench — Anthropic streaming vs anthropic SDK
         run: python bench/bench_anthropic_streaming.py
+
+      - name: Verify — validate_json on assembled stream
+        run: python bench/verify_validated.py
