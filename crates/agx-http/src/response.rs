@@ -1,4 +1,4 @@
-//! OpenAI chat-completions response types.
+//! OpenAI chat-completions response types (full + streaming chunk).
 
 use serde::{Deserialize, Serialize};
 
@@ -34,7 +34,6 @@ pub struct ResponseMessage {
     pub content: Option<String>,
     #[serde(default)]
     pub refusal: Option<String>,
-    /// Phase B will type this strictly; Phase A accepts whatever the model returns.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tool_calls: Option<serde_json::Value>,
 }
@@ -48,4 +47,43 @@ pub struct Usage {
     pub prompt_tokens_details: Option<serde_json::Value>,
     #[serde(default)]
     pub completion_tokens_details: Option<serde_json::Value>,
+}
+
+// ---------- streaming chunk shape ----------
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ChatCompletionChunk {
+    pub id: String,
+    #[serde(default)]
+    pub object: String,
+    #[serde(default)]
+    pub created: u64,
+    pub model: String,
+    pub choices: Vec<ChunkChoice>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub usage: Option<Usage>,
+    #[serde(default)]
+    pub system_fingerprint: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ChunkChoice {
+    pub index: u32,
+    pub delta: ChunkDelta,
+    #[serde(default)]
+    pub finish_reason: Option<String>,
+    #[serde(default)]
+    pub logprobs: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ChunkDelta {
+    #[serde(default)]
+    pub role: Option<String>,
+    #[serde(default)]
+    pub content: Option<String>,
+    #[serde(default)]
+    pub refusal: Option<String>,
+    #[serde(default)]
+    pub tool_calls: Option<serde_json::Value>,
 }

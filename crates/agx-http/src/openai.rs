@@ -1,36 +1,35 @@
-//! agx-http OpenAI sync client + PyO3 binding.
+//! agx-http OpenAI async client + PyO3 binding.
 //!
-//! Mirrors the `openai.OpenAI` constructor surface so swap-in is one import:
-//!     from openai import OpenAI    -> from agx import OpenAI
-//!
-//! Phase A: sync `chat_completions_create(request_dict)` returns the full
-//! response as a Python dict (passthrough of the model's JSON, no Pydantic
-//! re-validation overhead — the JSON is already validated by serde).
+//! Async reqwest::Client + per-instance tokio Runtime. The Python surface
+//! is sync (uses runtime.block_on internally) so callers don't have to
+//! think about asyncio. Streaming returns a sync iterator backed by a
+//! std::sync::mpsc channel; the Python iterator releases the GIL while
+//! waiting on recv().
 
 use crate::request::ChatCompletionRequest;
 use crate::response::ChatCompletionResponse;
+use crate::stream::PyChatCompletionStream;
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyString};
-use reqwest::blocking::Client;
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION, CONTENT_TYPE, USER_AGENT};
+use reqwest::Client;
+use std::sync::Arc;
 use std::time::Duration;
+use tokio::runtime::Runtime;
 
 const DEFAULT_BASE_URL: &str = "https://api.openai.com/v1";
 const USER_AGENT_STR: &str = concat!("agx-http/", env!("CARGO_PKG_VERSION"));
 
-/// agx OpenAI sync HTTP client. PyO3-exposed.
 #[pyclass(name = "OpenAIClient", module = "agx._agx")]
 pub struct PyOpenAIClient {
-    client: Client,
-    base_url: String,
-    /// Stored only so we can rebuild headers if needed; never logged.
-    _api_key: String,
+    client: Arc<Client>,
+    runtime: Arc<Runtime>,
+    base_url: Arc<String>,
 }
 
 #[pymethods]
 impl PyOpenAIClient {
-    /// Create a new client. Mirrors openai.OpenAI(api_key=..., base_url=..., timeout=...).
     #[new]
     #[pyo3(signature = (
         api_key = None,
@@ -75,53 +74,46 @@ impl PyOpenAIClient {
             .build()
             .map_err(|e| PyRuntimeError::new_err(format!("reqwest build failed: {e}")))?;
 
+        let runtime = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(2)
+            .enable_all()
+            .thread_name("agx-http")
+            .build()
+            .map_err(|e| PyRuntimeError::new_err(format!("tokio runtime build: {e}")))?;
+
         Ok(Self {
-            client,
-            base_url,
-            _api_key: api_key,
+            client: Arc::new(client),
+            runtime: Arc::new(runtime),
+            base_url: Arc::new(base_url),
         })
     }
 
-    /// Sync chat completion. Pass a dict matching the OpenAI request shape;
-    /// returns a dict matching the OpenAI response shape.
-    ///
-    /// GIL is released during the HTTP call so concurrent Python threads
-    /// can make progress (this composes with agx-rt's parallel tool dispatch).
+    /// Sync chat completion (non-streaming). Pass a dict matching the OpenAI
+    /// request shape; returns a dict matching the OpenAI response shape.
     fn chat_completions_create<'py>(
         &self,
         py: Python<'py>,
         request: Bound<'py, PyAny>,
     ) -> PyResult<Bound<'py, PyDict>> {
-        // Allow either a dict or a JSON string for the request body
-        let req: ChatCompletionRequest = if let Ok(s) = request.downcast::<PyString>() {
-            serde_json::from_str(&s.to_string_lossy())
-                .map_err(|e| PyValueError::new_err(format!("request JSON parse: {e}")))?
-        } else {
-            // dict path: round-trip via Python's json.dumps for now (Phase B
-            // will accept a typed Pydantic model directly to skip this hop)
-            let json_module = py.import("json")?;
-            let dumps = json_module.getattr("dumps")?;
-            let body_str: String = dumps.call1((request,))?.extract()?;
-            serde_json::from_str(&body_str)
-                .map_err(|e| PyValueError::new_err(format!("request JSON parse: {e}")))?
-        };
-
+        let req = parse_request(py, request)?;
         let url = format!("{}/chat/completions", self.base_url);
 
-        // GIL released during HTTP. Threads waiting in agx-rt can run.
-        let resp = py.allow_threads(|| {
-            self.client
-                .post(&url)
-                .json(&req)
-                .send()
-                .and_then(|r| r.error_for_status())
-                .and_then(|r| r.json::<ChatCompletionResponse>())
+        let client = Arc::clone(&self.client);
+        let runtime = Arc::clone(&self.runtime);
+        let parsed: Result<ChatCompletionResponse, reqwest::Error> = py.allow_threads(|| {
+            runtime.block_on(async move {
+                client
+                    .post(&url)
+                    .json(&req)
+                    .send()
+                    .await?
+                    .error_for_status()?
+                    .json::<ChatCompletionResponse>()
+                    .await
+            })
         });
 
-        let parsed = resp.map_err(|e| PyRuntimeError::new_err(format!("agx-http: {e}")))?;
-
-        // Marshal back to Python dict via JSON round-trip (one boundary cross,
-        // amortised against the network call which dominates wall time)
+        let parsed = parsed.map_err(|e| PyRuntimeError::new_err(format!("agx-http: {e}")))?;
         let out_str = serde_json::to_string(&parsed)
             .map_err(|e| PyRuntimeError::new_err(format!("response serialise: {e}")))?;
         let json_module = py.import("json")?;
@@ -132,13 +124,48 @@ impl PyOpenAIClient {
             .map_err(|e| PyRuntimeError::new_err(format!("response not dict: {e}")))
     }
 
-    /// Read-only; never returns the api_key.
+    /// Sync chat completion stream. Returns an iterator of chunk dicts.
+    /// Each iteration releases the GIL while waiting for the next chunk
+    /// from the SSE stream — concurrent Python threads can make progress.
+    fn chat_completions_create_stream<'py>(
+        &self,
+        py: Python<'py>,
+        request: Bound<'py, PyAny>,
+    ) -> PyResult<Py<PyChatCompletionStream>> {
+        let mut req = parse_request(py, request)?;
+        req.stream = Some(true);
+
+        let url = format!("{}/chat/completions", self.base_url);
+        PyChatCompletionStream::start(
+            Arc::clone(&self.client),
+            Arc::clone(&self.runtime),
+            url,
+            req,
+        )
+        .map(|s| Py::new(py, s))
+        .and_then(|r| r)
+    }
+
     #[getter]
-    fn base_url(&self) -> &str {
-        &self.base_url
+    fn base_url(&self) -> String {
+        (*self.base_url).clone()
     }
 
     fn __repr__(&self) -> String {
-        format!("OpenAIClient(base_url={:?})", self.base_url)
+        format!("OpenAIClient(base_url={:?})", &*self.base_url)
     }
+}
+
+// ---------- helpers ----------
+
+fn parse_request(py: Python<'_>, request: Bound<'_, PyAny>) -> PyResult<ChatCompletionRequest> {
+    if let Ok(s) = request.downcast::<PyString>() {
+        return serde_json::from_str(&s.to_string_lossy())
+            .map_err(|e| PyValueError::new_err(format!("request JSON parse: {e}")));
+    }
+    let json_module = py.import("json")?;
+    let dumps = json_module.getattr("dumps")?;
+    let body_str: String = dumps.call1((request,))?.extract()?;
+    serde_json::from_str(&body_str)
+        .map_err(|e| PyValueError::new_err(format!("request JSON parse: {e}")))
 }
