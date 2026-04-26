@@ -1,19 +1,27 @@
 //! agx-http — Rust LLM HTTP client.
 //!
-//! Drop-in replacement for openai/anthropic/etc Python SDK clients.
-//! reqwest connection pool + native SSE parser + streaming JSON
-//! validation. GIL released during HTTP and SSE parse, re-acquired
-//! only to deliver chunks to Python user code.
+//! Phase A: sync OpenAI chat-completions client.
+//! Phase B (next turn): SSE streaming + streaming JSON validation.
+//! Phase C: vendor adapters (Anthropic, Gemini, vLLM extra_body, Mistral, xAI).
 //!
-//! Status: scaffolded, not yet implemented. Week 1-2 of agx_v1_plan.md
-//! brings up the OpenAI chat-completions request + parser path with
-//! reqwest. Vendor adapters (Anthropic, Gemini, vLLM extra_body,
-//! Mistral, xAI) follow in week 3.
+//! Drop-in shape for `from openai import OpenAI`. Same constructor surface
+//! (api_key, base_url, http_client). Same `chat.completions.create()` shape.
+//! Returns dicts mirroring the OpenAI response, no marshalling overhead.
+//!
+//! reqwest with rustls-tls + http2 + gzip + brotli. Connection pool stays
+//! alive for the lifetime of the client. GIL released during HTTP via
+//! py.allow_threads (Phase B will do the same for streaming).
+
+mod openai;
+mod request;
+mod response;
 
 use pyo3::prelude::*;
 
+pub use openai::PyOpenAIClient;
+
 /// Register agx-http's pyclasses into a parent Python module.
-/// Currently a no-op until the OpenAI client lands in week 1-2.
-pub fn register(_m: &Bound<'_, PyModule>) -> PyResult<()> {
+pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_class::<PyOpenAIClient>()?;
     Ok(())
 }

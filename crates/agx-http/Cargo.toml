@@ -15,8 +15,5 @@ pyo3 = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 bytes = { workspace = true }
-# Wired in week 1-2:
-# reqwest = { version = "0.12", features = ["rustls-tls", "stream", "json", "http2", "brotli", "gzip"] }
-# tokio = { version = "1.40", features = ["rt-multi-thread", "macros"] }
-# eventsource-stream = "0.2"
-# futures-util = "0.3"
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls", "gzip", "brotli", "http2"] }
+thiserror = "2.0"
