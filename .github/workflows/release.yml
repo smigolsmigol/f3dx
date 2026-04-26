@@ -10,38 +10,118 @@ permissions:
   contents: read
 
 jobs:
-  build-wheels:
-    name: build wheels (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
+  linux-glibc:
+    name: linux glibc (${{ matrix.target }})
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        target: [x86_64, aarch64]
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-
-      - uses: dtolnay/rust-toolchain@stable
-
-      - name: Build wheel (abi3)
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.86.0"
+      - name: Build wheel (manylinux abi3)
         uses: PyO3/maturin-action@v1
         with:
           command: build
           args: --release --out dist
-          sccache: "true"
+          target: ${{ matrix.target }}
           manylinux: auto
-
-      - name: Upload wheel artifact
-        uses: actions/upload-artifact@v4
+          sccache: "true"
+      - uses: actions/upload-artifact@v4
         with:
-          name: wheels-${{ matrix.os }}
+          name: wheels-linux-glibc-${{ matrix.target }}
           path: dist/*
 
-  build-sdist:
-    name: build sdist
+  linux-musl:
+    name: linux musl (${{ matrix.target }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [x86_64, aarch64]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.86.0"
+      - name: Build wheel (musllinux abi3)
+        uses: PyO3/maturin-action@v1
+        with:
+          command: build
+          args: --release --out dist
+          target: ${{ matrix.target }}
+          manylinux: musllinux_1_2
+          sccache: "true"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheels-linux-musl-${{ matrix.target }}
+          path: dist/*
+
+  macos:
+    name: macos (${{ matrix.target }})
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [x86_64, aarch64]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.86.0"
+      - name: Build wheel (macos abi3)
+        uses: PyO3/maturin-action@v1
+        with:
+          command: build
+          args: --release --out dist
+          target: ${{ matrix.target }}
+          sccache: "true"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheels-macos-${{ matrix.target }}
+          path: dist/*
+
+  windows:
+    name: windows (${{ matrix.target }})
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [x64]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.86.0"
+      - name: Build wheel (windows abi3)
+        uses: PyO3/maturin-action@v1
+        with:
+          command: build
+          args: --release --out dist
+          target: ${{ matrix.target }}
+          sccache: "true"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheels-windows-${{ matrix.target }}
+          path: dist/*
+
+  sdist:
+    name: sdist
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -60,7 +140,7 @@ jobs:
 
   publish:
     name: publish to PyPI
-    needs: [build-wheels, build-sdist]
+    needs: [linux-glibc, linux-musl, macos, windows, sdist]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
     environment:

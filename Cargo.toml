@@ -17,6 +17,15 @@ serde_json = "1.0"
 ahash = "0.8"
 bytes = "1.10"
 
+[workspace.lints.clippy]
+dbg_macro = "warn"
+todo = "warn"
+print_stdout = "allow"
+print_stderr = "allow"
+
+[workspace.lints.rust]
+unsafe_code = "warn"
+
 [profile.release]
 lto = "fat"
 codegen-units = 1

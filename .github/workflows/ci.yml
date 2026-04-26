@@ -29,36 +29,39 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache cargo registry + target
-        uses: actions/cache@v4
+        uses: dtolnay/rust-toolchain@master
         with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock', '**/Cargo.toml') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-
+          toolchain: "1.86.0"
+          components: rustfmt, clippy
+
+      - name: Cache cargo build
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: f3dx-${{ matrix.os }}
 
       - name: cargo fmt --check
         run: cargo fmt --all -- --check
 
       - name: cargo clippy
         run: cargo clippy --all-targets --release -- -D warnings
-        continue-on-error: true  # Phase 1 of CI: report only, don't gate
 
       - name: Install maturin + bench deps
         run: |
           python -m pip install --upgrade pip
           pip install maturin pytest openai anthropic
 
-      - name: Build wheel + install editable
-        run: maturin develop --release
+      - name: Build wheel
+        run: maturin build --release --out dist
 
-      - name: Smoke import
+      - name: Install built wheel
+        shell: bash
+        run: pip install --force-reinstall dist/*.whl
+
+      - name: Smoke import (built wheel, not editable)
         run: python -c "import f3dx; print(f3dx.__version__); print(sorted(x for x in dir(f3dx._f3dx) if not x.startswith('_')))"
+
+      - name: Smoke import (compat shim)
+        run: python -c "from f3dx.compat import OpenAI; import openai; print('OpenAI subclass:', issubclass(OpenAI, openai.OpenAI))"
 
       - name: Bench — concurrent tool dispatch
         run: python bench/bench_concurrent.py
@@ -80,3 +83,9 @@ jobs:
 
       - name: Verify — validate_json on assembled stream
         run: python bench/verify_validated.py
+
+      - name: Verify — panic hook + concurrent dispatch safety
+        run: python bench/verify_panic_hook.py
+
+      - name: Verify — openai-compat subclass shim
+        run: python bench/verify_compat.py

@@ -16,3 +16,6 @@ f3dx-rt = { path = "../f3dx-rt" }
 f3dx-http = { path = "../f3dx-http" }
 f3dx-trace = { path = "../f3dx-trace" }
 pyo3 = { workspace = true, features = ["extension-module"] }
+
+[lints]
+workspace = true

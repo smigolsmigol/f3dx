@@ -21,7 +21,7 @@ use opentelemetry_otlp::{SpanExporter, WithExportConfig, WithHttpConfig};
 use opentelemetry_sdk::runtime;
 use opentelemetry_sdk::trace::{Tracer, TracerProvider};
 use opentelemetry_sdk::Resource;
-use pyo3::exceptions::{PyIOError, PyRuntimeError};
+use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use serde_json::Value;
@@ -67,9 +67,7 @@ fn configure_otel(
         KeyValue::new("f3dx.runtime", "rust"),
     ]);
 
-    let mut builder = TracerProvider::builder().with_config(
-        opentelemetry_sdk::trace::Config::default().with_resource(resource),
-    );
+    let mut builder = TracerProvider::builder().with_resource(resource);
 
     if let Some(endpoint_url) = endpoint {
         let exporter = SpanExporter::builder()
@@ -157,14 +155,14 @@ fn trace_sink_path() -> Option<String> {
 /// Smoke-test entry: emit a single test span to verify the configured
 /// exporter works end-to-end. Returns the trace_id as a hex string.
 #[pyfunction]
-fn emit_test_span<'py>(py: Python<'py>, name: String) -> PyResult<Bound<'py, PyDict>> {
+fn emit_test_span(py: Python<'_>, name: String) -> PyResult<Bound<'_, PyDict>> {
     let out = PyDict::new(py);
     let Some(tracer) = tracer() else {
         out.set_item("ok", false)?;
         out.set_item("reason", "tracer not configured; call configure_otel first")?;
         return Ok(out);
     };
-    use opentelemetry::trace::{Span, TraceContextExt};
+    use opentelemetry::trace::Span;
     let mut span = tracer.start(name.clone());
     let trace_id = span.span_context().trace_id().to_string();
     let span_id = span.span_context().span_id().to_string();

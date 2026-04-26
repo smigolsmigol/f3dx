@@ -17,3 +17,6 @@ serde_json = { workspace = true }
 ahash = { workspace = true }
 f3dx-trace = { path = "../f3dx-trace" }
 opentelemetry = { version = "0.27", features = ["trace"] }
+
+[lints]
+workspace = true
