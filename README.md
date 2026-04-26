@@ -1,6 +1,8 @@
 # f3dx
 
-f3d1 Rust-core runtime for [pydantic-ai](https://github.com/pydantic/pydantic-ai). Polars for agents.
+The Rust runtime your Python imports. Drop-in for `openai` and `anthropic` SDKs with native SSE streaming, an agent loop with concurrent tool dispatch, and Logfire-compatible OTel emission. PyO3 + abi3 wheels for ubuntu/macos/windows. Built for [pydantic-ai](https://github.com/pydantic/pydantic-ai).
+
+The intellectual frame is Cruz's "AI Runtime Infrastructure" ([arXiv:2603.00495](https://arxiv.org/abs/2603.00495), Feb 2026): a distinct execution-time layer above the model and below the application that observes, reasons over, and intervenes in agent behavior at runtime. f3dx is that layer, in Rust, for Python apps.
 
 ```bash
 pip install f3dx
@@ -107,14 +109,23 @@ f3dx/
   .github/workflows/ci.yml   ubuntu/macos/windows + python 3.12 + bench-as-test
 ```
 
+## What this is not
+
+f3dx is a Python-from-Rust runtime — a Rust core that ships as a Python wheel via PyO3. If you're building a pure Rust application and want an agent framework in your binary, look at [AutoAgents](https://github.com/saivishwak/autoagents) (Rust agent framework with role-based multi-agent), [rig](https://github.com/0xPlaygrounds/rig) (provider abstraction + RAG primitives in Rust), or [mistral.rs](https://github.com/EricLBuehler/mistral.rs) (local inference engine). Different audience, different scope.
+
+f3dx is not an inference engine. Use vLLM, TGI, mistral.rs, llama.cpp, or any OpenAI-compatible endpoint underneath; f3dx talks to them.
+
+f3dx is not a multi-agent orchestration framework. It is the runtime layer below frameworks like pydantic-ai, LangChain, LlamaIndex, CrewAI, AutoGen.
+
 ## What's not here yet
 
 - Gemini adapter (Phase C.2)
 - Parent-child trace context propagation between AgentRuntime span and HTTP child spans (needs Python-side context bridge)
 - jsonschema validation in `validate_json` mode (V0 only checks parseable JSON; Pydantic schema check coming)
-- True fail-fast incremental JSON validation (V0 validates at terminal; V0.2 will use a streaming JSON parser state machine)
-- Arrow trace store + parquet/DuckDB sinks (Phase G)
-- Public PyPI release (after benchmarks against pydantic-ai's own runtime)
+- True fail-fast incremental JSON validation (V0 validates at terminal; V0.2 will use XGrammar as the streaming validator backend)
+- Arrow trace store + parquet/DuckDB sinks (V0.1 of Phase G)
+- Adapter packages: `f3dx[openai-compat]` (subclass shim for openai.OpenAI isinstance compatibility), `f3dx[pydantic-ai]` (Capability + WrapperModel sub-package), `langchain-f3dx` (separate PyPI package per LangChain partner-package convention)
+- Public PyPI release (gated only on PyPI trusted-publisher config — see release workflow)
 
 ## License
 
