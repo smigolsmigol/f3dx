@@ -6,6 +6,7 @@
 //! std::sync::mpsc channel; the Python iterator releases the GIL while
 //! waiting on recv().
 
+use crate::otel;
 use crate::request::ChatCompletionRequest;
 use crate::response::ChatCompletionResponse;
 use crate::stream::{PyAssembledStream, PyChatCompletionStream};
@@ -98,6 +99,11 @@ impl PyOpenAIClient {
         let req = parse_request(py, request)?;
         let url = format!("{}/chat/completions", self.base_url);
 
+        let mut span = otel::start_http_span("chat", "openai", &req.model);
+        if let Some(s) = span.as_mut() {
+            otel::add_request_params(s, req.temperature, req.top_p, req.max_tokens, Some(false));
+        }
+
         let client = Arc::clone(&self.client);
         let runtime = Arc::clone(&self.runtime);
         let parsed: Result<ChatCompletionResponse, reqwest::Error> = py.allow_threads(|| {
@@ -113,9 +119,23 @@ impl PyOpenAIClient {
             })
         });
 
-        let parsed = parsed.map_err(|e| PyRuntimeError::new_err(format!("f3dx-http: {e}")))?;
+        let parsed = match parsed {
+            Ok(p) => p,
+            Err(e) => {
+                if let Some(s) = span.take() {
+                    otel::finish_err(s, format!("{e}"));
+                }
+                return Err(PyRuntimeError::new_err(format!("f3dx-http: {e}")));
+            }
+        };
         let out_str = serde_json::to_string(&parsed)
             .map_err(|e| PyRuntimeError::new_err(format!("response serialise: {e}")))?;
+        if let Some(mut s) = span.take() {
+            if let Ok(v) = serde_json::from_str::<serde_json::Value>(&out_str) {
+                otel::add_openai_response(&mut s, &v);
+            }
+            otel::finish_ok(s);
+        }
         let json_module = py.import("json")?;
         let loads = json_module.getattr("loads")?;
         let py_obj = loads.call1((out_str,))?;
@@ -134,6 +154,14 @@ impl PyOpenAIClient {
     ) -> PyResult<Py<PyChatCompletionStream>> {
         let mut req = parse_request(py, request)?;
         req.stream = Some(true);
+
+        // HTTP-level span: stream open. Closed when the stream task ends
+        // (token-usage attrs not available without per-vendor opt-in flags;
+        // skipped in V0.1, added in V0.2 when usage chunks arrive).
+        if let Some(mut s) = otel::start_http_span("chat", "openai", &req.model) {
+            otel::add_request_params(&mut s, req.temperature, req.top_p, req.max_tokens, Some(true));
+            otel::finish_ok(s);
+        }
 
         let url = format!("{}/chat/completions", self.base_url);
         PyChatCompletionStream::start(
@@ -161,6 +189,13 @@ impl PyOpenAIClient {
     ) -> PyResult<Py<PyAssembledStream>> {
         let mut req = parse_request(py, request)?;
         req.stream = Some(true);
+
+        if let Some(mut s) = otel::start_http_span("chat", "openai", &req.model) {
+            use opentelemetry::trace::Span as _;
+            otel::add_request_params(&mut s, req.temperature, req.top_p, req.max_tokens, Some(true));
+            s.set_attribute(opentelemetry::KeyValue::new("f3dx.assembled", true));
+            otel::finish_ok(s);
+        }
 
         let url = format!("{}/chat/completions", self.base_url);
         PyAssembledStream::start(

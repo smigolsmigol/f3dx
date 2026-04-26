@@ -11,6 +11,7 @@
 //! parsed event through to Python as a dict with the original `type`
 //! field intact, so user code can dispatch on it cleanly.
 
+use crate::otel;
 use crate::stream::{spawn_anthropic_pump, PyAnthropicStream};
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
@@ -115,6 +116,19 @@ impl PyAnthropicClient {
         }
         let url = format!("{}/v1/messages", self.base_url);
 
+        let model = req
+            .get("model")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown")
+            .to_string();
+        let temperature = req.get("temperature").and_then(|v| v.as_f64()).map(|x| x as f32);
+        let top_p = req.get("top_p").and_then(|v| v.as_f64()).map(|x| x as f32);
+        let max_tokens = req.get("max_tokens").and_then(|v| v.as_u64()).map(|x| x as u32);
+        let mut span = otel::start_http_span("messages", "anthropic", &model);
+        if let Some(s) = span.as_mut() {
+            otel::add_request_params(s, temperature, top_p, max_tokens, Some(false));
+        }
+
         let client = Arc::clone(&self.client);
         let runtime = Arc::clone(&self.runtime);
         let parsed: Result<Value, reqwest::Error> = py.allow_threads(|| {
@@ -130,7 +144,19 @@ impl PyAnthropicClient {
             })
         });
 
-        let parsed = parsed.map_err(|e| PyRuntimeError::new_err(format!("f3dx-http: {e}")))?;
+        let parsed = match parsed {
+            Ok(p) => p,
+            Err(e) => {
+                if let Some(s) = span.take() {
+                    otel::finish_err(s, format!("{e}"));
+                }
+                return Err(PyRuntimeError::new_err(format!("f3dx-http: {e}")));
+            }
+        };
+        if let Some(mut s) = span.take() {
+            otel::add_anthropic_response(&mut s, &parsed);
+            otel::finish_ok(s);
+        }
         value_to_pydict(py, &parsed)
     }
 
@@ -148,6 +174,19 @@ impl PyAnthropicClient {
             map.insert("stream".into(), Value::Bool(true));
         }
         let url = format!("{}/v1/messages", self.base_url);
+
+        let model = req
+            .get("model")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown")
+            .to_string();
+        let temperature = req.get("temperature").and_then(|v| v.as_f64()).map(|x| x as f32);
+        let top_p = req.get("top_p").and_then(|v| v.as_f64()).map(|x| x as f32);
+        let max_tokens = req.get("max_tokens").and_then(|v| v.as_u64()).map(|x| x as u32);
+        if let Some(mut s) = otel::start_http_span("messages", "anthropic", &model) {
+            otel::add_request_params(&mut s, temperature, top_p, max_tokens, Some(true));
+            otel::finish_ok(s);
+        }
 
         let stream = spawn_anthropic_pump(
             Arc::clone(&self.client),

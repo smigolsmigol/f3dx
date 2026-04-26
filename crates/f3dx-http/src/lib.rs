@@ -15,6 +15,7 @@
 
 mod anthropic;
 mod openai;
+mod otel;
 mod request;
 mod response;
 mod stream;
