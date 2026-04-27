@@ -122,6 +122,10 @@ f3dx is not an inference engine. Use vLLM, TGI, mistral.rs, llama.cpp, or any Op
 
 f3dx is not a multi-agent orchestration framework. It is the runtime layer below frameworks like pydantic-ai, LangChain, LlamaIndex, CrewAI, AutoGen.
 
+## Sibling project
+
+[`tracewright`](https://github.com/smigolsmigol/tracewright) — replay-driven eval over f3dx and pydantic-ai JSONL traces. Take a recorded trace, swap the candidate model, get a per-case diff. Closes the loop from "we have observability" to "we have regression tests".
+
 ## Adapter packages
 
 ```python
