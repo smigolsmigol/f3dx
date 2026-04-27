@@ -143,6 +143,23 @@ f3dx is not a multi-agent orchestration framework. It is the runtime layer below
 
 [`tracewright`](https://github.com/smigolsmigol/tracewright) — replay-driven eval over f3dx and pydantic-ai JSONL traces. Take a recorded trace, swap the candidate model, get a per-case diff. Closes the loop from "we have observability" to "we have regression tests".
 
+## Composition with ATLAS-RTC (Cruz)
+
+```python
+# pip install f3dx[atlas-rtc]
+from atlas_rtc.adapters.mock_adapter import MockAdapter, MockScenario
+from f3dx.atlas_rtc import controlled_completion
+
+result = controlled_completion(
+    prompt="Return JSON with name and age.",
+    contract=["name", "age"],          # shorthand for JSONSchemaContract(required_keys=...)
+    adapter=MockAdapter(scenario),     # or HFAdapter / VLLMAdapter for real models
+)
+# result.text='{"name":"alice","age":30}', result.valid=True, result.interventions=N
+```
+
+[ATLAS-RTC](https://github.com/cruz209/ATLAS-RTC) (Christopher Cruz, MIT) is a runtime control layer that enforces structured outputs at decode time — drift detection + logit masking + rollback during generation. f3dx's runtime sits at a different layer (transport + observability + agent loop). They compose: ATLAS-RTC owns the per-token control loop, f3dx owns the request transport and trace emission. Most useful with local vLLM / HuggingFace where decode-time control is reachable; cloud APIs (OpenAI, Anthropic) don't expose that surface.
+
 ## MCP client
 
 ```python
