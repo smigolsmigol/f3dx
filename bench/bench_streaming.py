@@ -87,6 +87,7 @@ def main() -> None:
             print()
         finally:
             srv.shutdown()
+            srv.server_close()
 
 
 if __name__ == "__main__":
