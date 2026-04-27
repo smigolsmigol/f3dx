@@ -150,13 +150,17 @@ impl PyAssembledStream {
         req: ChatCompletionRequest,
         span: Option<SpanT>,
         validate_json: bool,
+        output_schema: Option<Value>,
     ) -> PyResult<Self> {
         let (tx, rx) = mpsc::channel::<StreamEvent>();
         let runtime_handle = Arc::clone(&runtime);
         runtime_handle.spawn(async move {
             let mut span = span;
             if let Err(e) =
-                pump_openai_assembled(client, url, req, tx.clone(), &mut span, validate_json).await
+                pump_openai_assembled(
+                    client, url, req, tx.clone(), &mut span, validate_json, output_schema,
+                )
+                .await
             {
                 if let Some(s) = span.take() {
                     otel::finish_err(s, format!("{e}"));
@@ -187,6 +191,7 @@ async fn pump_openai_assembled(
     tx: Sender<StreamEvent>,
     span: &mut Option<SpanT>,
     validate_json: bool,
+    output_schema: Option<Value>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let resp = client
         .post(&url)
@@ -271,11 +276,38 @@ async fn pump_openai_assembled(
     }
 
     // If validation requested, parse the accumulated content as JSON and
-    // emit either validated_output or validation_error before done.
+    // emit either validated_output or validation_error before done. When
+    // output_schema is also present, run jsonschema against the parsed
+    // value; only emit validated_output on schema-conformant input.
     if validate_json && !content_buf.is_empty() {
         match serde_json::from_str::<Value>(&content_buf) {
             Ok(parsed) => {
-                let event = serde_json::json!({"type": "validated_output", "data": parsed});
+                let schema_ok = match output_schema.as_ref() {
+                    None => Ok(()),
+                    Some(schema) => match jsonschema::validator_for(schema) {
+                        Ok(validator) => {
+                            let errs: Vec<String> = validator
+                                .iter_errors(&parsed)
+                                .map(|e| format!("{} at /{}", e, e.instance_path))
+                                .collect();
+                            if errs.is_empty() {
+                                Ok(())
+                            } else {
+                                Err(errs.join("; "))
+                            }
+                        }
+                        Err(e) => Err(format!("invalid schema: {e}")),
+                    },
+                };
+                let event = match schema_ok {
+                    Ok(()) => serde_json::json!({"type": "validated_output", "data": parsed}),
+                    Err(detail) => serde_json::json!({
+                        "type": "validation_error",
+                        "raw": content_buf,
+                        "error": detail,
+                        "kind": "schema",
+                    }),
+                };
                 let _ = tx.send(StreamEvent::Chunk(event.to_string()));
             }
             Err(e) => {
@@ -283,6 +315,7 @@ async fn pump_openai_assembled(
                     "type": "validation_error",
                     "raw": content_buf,
                     "error": e.to_string(),
+                    "kind": "json_parse",
                 });
                 let _ = tx.send(StreamEvent::Chunk(event.to_string()));
             }

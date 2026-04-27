@@ -106,5 +106,8 @@ jobs:
       - name: Verify — token counts in JSONL trace rows
         run: python bench/verify_token_counts.py
 
+      - name: Verify — schema-aware streaming validation (Phase E V0.2)
+        run: python bench/verify_schema_validation.py
+
       - name: Verify — MCP stdio client (npx server-everything)
         run: python bench/verify_mcp.py

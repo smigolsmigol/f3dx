@@ -194,12 +194,16 @@ impl PyOpenAIClient {
     ///   {"type": "validation_error", "raw": "...", "error": "..."}  on parse fail
     /// Use this with response_format={"type": "json_object"} to skip the
     /// "accumulate content + json.loads at end" boilerplate Python-side.
-    #[pyo3(signature = (request, validate_json = false))]
+    /// When `output_schema` is provided (a JSON Schema dict), the terminal
+    /// `validated_output` event is only emitted if the parsed JSON satisfies
+    /// the schema; otherwise `validation_error` carries the schema violation.
+    #[pyo3(signature = (request, validate_json = false, output_schema = None))]
     fn chat_completions_create_stream_assembled<'py>(
         &self,
         py: Python<'py>,
         request: Bound<'py, PyAny>,
         validate_json: bool,
+        output_schema: Option<Bound<'py, PyAny>>,
     ) -> PyResult<Py<PyAssembledStream>> {
         let mut req = parse_request(py, request)?;
         req.stream = Some(true);
@@ -207,11 +211,28 @@ impl PyOpenAIClient {
             .entry("stream_options".to_string())
             .or_insert_with(|| serde_json::json!({"include_usage": true}));
 
+        let schema_value = match output_schema {
+            None => None,
+            Some(obj) => {
+                let json_module = py.import("json")?;
+                let dumps = json_module.getattr("dumps")?;
+                let s: String = dumps.call1((obj,))?.extract()?;
+                Some(serde_json::from_str::<serde_json::Value>(&s).map_err(|e| {
+                    pyo3::exceptions::PyValueError::new_err(format!(
+                        "output_schema not JSON-serializable: {e}"
+                    ))
+                })?)
+            }
+        };
+
         let mut span = otel::start_http_span("chat", "openai", &req.model);
         if let Some(s) = span.as_mut() {
             use opentelemetry::trace::Span as _;
             otel::add_request_params(s, req.temperature, req.top_p, req.max_tokens, Some(true));
             s.set_attribute(opentelemetry::KeyValue::new("f3dx.assembled", true));
+            if schema_value.is_some() {
+                s.set_attribute(opentelemetry::KeyValue::new("f3dx.validate_schema", true));
+            }
         }
 
         let url = format!("{}/chat/completions", self.base_url);
@@ -222,6 +243,7 @@ impl PyOpenAIClient {
             req,
             span,
             validate_json,
+            schema_value,
         )
         .map(|s| Py::new(py, s))
         .and_then(|r| r)

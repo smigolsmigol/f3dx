@@ -23,6 +23,9 @@ thiserror = "2.0"
 f3dx-trace = { path = "../f3dx-trace" }
 opentelemetry = { version = "0.27", features = ["trace"] }
 opentelemetry_sdk = { version = "0.27", features = ["trace"] }
+# Phase E V0.2: terminal-time schema validation. Streaming-incremental schema
+# walk lands as V0.2.1 once the streaming JSON parser side is plumbed.
+jsonschema = { version = "0.27", default-features = false }
 
 [lints]
 workspace = true
