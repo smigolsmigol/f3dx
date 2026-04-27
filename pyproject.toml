@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "f3dx"
-version = "0.0.15"
+version = "0.0.16"
 description = "Rust runtime for Python AI apps. Drop-in for openai/anthropic SDKs with native SSE streaming, an agent loop with concurrent tool dispatch, and Logfire-compatible OTel emission."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -29,7 +29,13 @@ arrow = [
     "pyarrow>=18.0",
 ]
 atlas-rtc = [
-    "atlas-rtc @ git+https://github.com/cruz209/ATLAS-RTC",
+    # atlas-rtc isn't on PyPI yet (cruz209/ATLAS-RTC is github-only). PyPI
+    # rejects packages with direct-url dependencies in extras, so the user
+    # installs it separately:
+    #   pip install f3dx[atlas-rtc]
+    #   pip install "atlas-rtc @ git+https://github.com/cruz209/ATLAS-RTC"
+    # This extra exists as a documentation pointer; the import-time error
+    # in f3dx.atlas_rtc names the same install command.
 ]
 vigil = [
     # VIGIL ships as a project scaffold (cruz209/V.I.G.I.L). The bridge

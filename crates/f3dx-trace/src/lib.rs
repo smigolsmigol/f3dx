@@ -14,13 +14,13 @@
 //! skip span emission (zero overhead).
 
 use once_cell::sync::OnceCell;
+use opentelemetry::KeyValue;
 use opentelemetry::global;
 use opentelemetry::trace::{Tracer as _, TracerProvider as _};
-use opentelemetry::KeyValue;
 use opentelemetry_otlp::{SpanExporter, WithExportConfig, WithHttpConfig};
+use opentelemetry_sdk::Resource;
 use opentelemetry_sdk::runtime;
 use opentelemetry_sdk::trace::{Tracer, TracerProvider};
-use opentelemetry_sdk::Resource;
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
@@ -41,8 +41,7 @@ static JSONL_SINK: StdOnceLock<Mutex<Option<PathBuf>>> = StdOnceLock::new();
 /// Whether the JSONL sink should include the prompt + system_prompt + output
 /// in each row (PII-sensitive, default false). Opt-in for downstream replay
 /// tools like tracewright that need to rebuild the original request.
-static CAPTURE_MESSAGES: std::sync::atomic::AtomicBool =
-    std::sync::atomic::AtomicBool::new(false);
+static CAPTURE_MESSAGES: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 /// Read the current capture-messages flag from the rt without locking.
 pub fn capture_messages_enabled() -> bool {

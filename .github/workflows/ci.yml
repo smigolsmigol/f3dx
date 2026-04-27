@@ -108,6 +108,9 @@ jobs:
       - name: Verify — schema-aware streaming validation (Phase E V0.2)
         run: python bench/verify_schema_validation.py
 
+      - name: Verify — incremental fail-fast on JSON prefix (Phase E V0.2.1)
+        run: python bench/verify_validate_prefix.py
+
       - name: Install pyarrow for analytics verify
         run: pip install "pyarrow>=18.0"
 

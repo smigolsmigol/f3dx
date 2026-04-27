@@ -13,8 +13,8 @@
 //! this because asyncio dispatches sequentially within one event loop.
 
 use ahash::AHashMap;
-use opentelemetry::trace::{Span, Status, Tracer as _};
 use opentelemetry::KeyValue;
+use opentelemetry::trace::{Span, Status, Tracer as _};
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 use serde::{Deserialize, Serialize};
@@ -106,10 +106,22 @@ impl AgentRuntime {
         let mut span = f3dx_trace::tracer().map(|t| {
             let mut s = t.start("f3dx.agent_runtime.run");
             s.set_attribute(KeyValue::new("gen_ai.system", "f3dx"));
-            s.set_attribute(KeyValue::new("f3dx.concurrent_tool_dispatch", self.concurrent_tool_dispatch));
-            s.set_attribute(KeyValue::new("f3dx.max_iterations", self.max_iterations as i64));
-            s.set_attribute(KeyValue::new("f3dx.max_tool_calls", self.max_tool_calls as i64));
-            s.set_attribute(KeyValue::new("gen_ai.prompt.length_chars", prompt.len() as i64));
+            s.set_attribute(KeyValue::new(
+                "f3dx.concurrent_tool_dispatch",
+                self.concurrent_tool_dispatch,
+            ));
+            s.set_attribute(KeyValue::new(
+                "f3dx.max_iterations",
+                self.max_iterations as i64,
+            ));
+            s.set_attribute(KeyValue::new(
+                "f3dx.max_tool_calls",
+                self.max_tool_calls as i64,
+            ));
+            s.set_attribute(KeyValue::new(
+                "gen_ai.prompt.length_chars",
+                prompt.len() as i64,
+            ));
             s
         });
 
@@ -154,12 +166,11 @@ impl AgentRuntime {
                     )));
                 }
             };
-            let response: MockModelResponse =
-                serde_json::from_str(&mock_str).map_err(|e| {
-                    pyo3::exceptions::PyValueError::new_err(format!(
-                        "mock response {iter_idx} not parseable: {e}"
-                    ))
-                })?;
+            let response: MockModelResponse = serde_json::from_str(&mock_str).map_err(|e| {
+                pyo3::exceptions::PyValueError::new_err(format!(
+                    "mock response {iter_idx} not parseable: {e}"
+                ))
+            })?;
 
             if let Some(u) = &response.usage {
                 usage_input = usage_input.saturating_add(u.input_tokens);
@@ -206,8 +217,14 @@ impl AgentRuntime {
         let elapsed_ms = t_start.elapsed().as_secs_f64() * 1000.0;
         if let Some(s) = span.as_mut() {
             s.set_attribute(KeyValue::new("f3dx.iterations", iter_done as i64));
-            s.set_attribute(KeyValue::new("f3dx.tool_calls_executed", tool_calls_executed as i64));
-            s.set_attribute(KeyValue::new("f3dx.output.length_chars", final_answer.len() as i64));
+            s.set_attribute(KeyValue::new(
+                "f3dx.tool_calls_executed",
+                tool_calls_executed as i64,
+            ));
+            s.set_attribute(KeyValue::new(
+                "f3dx.output.length_chars",
+                final_answer.len() as i64,
+            ));
             s.set_attribute(KeyValue::new("f3dx.duration_ms", elapsed_ms));
             s.set_status(Status::Ok);
             s.end();
@@ -255,7 +272,10 @@ impl AgentRuntime {
                     "system_prompt".into(),
                     serde_json::Value::String(self.system_prompt.clone()),
                 );
-                obj.insert("output".into(), serde_json::Value::String(final_answer.clone()));
+                obj.insert(
+                    "output".into(),
+                    serde_json::Value::String(final_answer.clone()),
+                );
             }
         }
         f3dx_trace::emit_trace_row(&row);
@@ -361,9 +381,9 @@ fn call_tool(
         Some(callable) => {
             let bound = callable.bind(py);
             match bound.call1((arguments,)) {
-                Ok(ret) => ret
-                    .extract()
-                    .unwrap_or_else(|_| format!(r#"{{"error":"tool {name} returned non-string"}}"#)),
+                Ok(ret) => ret.extract().unwrap_or_else(|_| {
+                    format!(r#"{{"error":"tool {name} returned non-string"}}"#)
+                }),
                 Err(e) => format!(r#"{{"error":"tool {name} raised: {e}"}}"#),
             }
         }

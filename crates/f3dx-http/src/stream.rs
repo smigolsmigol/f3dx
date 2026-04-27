@@ -156,11 +156,16 @@ impl PyAssembledStream {
         let runtime_handle = Arc::clone(&runtime);
         runtime_handle.spawn(async move {
             let mut span = span;
-            if let Err(e) =
-                pump_openai_assembled(
-                    client, url, req, tx.clone(), &mut span, validate_json, output_schema,
-                )
-                .await
+            if let Err(e) = pump_openai_assembled(
+                client,
+                url,
+                req,
+                tx.clone(),
+                &mut span,
+                validate_json,
+                output_schema,
+            )
+            .await
             {
                 if let Some(s) = span.take() {
                     otel::finish_err(s, format!("{e}"));
@@ -205,6 +210,11 @@ async fn pump_openai_assembled(
     let mut finish_reason: Option<String> = None;
     // Accumulator for validate_json mode (concatenates all delta.content)
     let mut content_buf = String::new();
+    // Phase E V0.2.1: early fail when the model prefaces with prose before
+    // emitting JSON. Once we've seen the first non-whitespace character of
+    // accumulated content, the prefix decision is locked.
+    let mut prefix_decided = false;
+    let mut prefix_failed = false;
 
     let mut sse = resp.bytes_stream().eventsource();
     while let Some(event) = sse.next().await {
@@ -235,6 +245,32 @@ async fn pump_openai_assembled(
                         if !content.is_empty() {
                             if validate_json {
                                 content_buf.push_str(content);
+                                // Phase E V0.2.1 early-fail: once we see the
+                                // first non-whitespace character of accumulated
+                                // content, it must be { or [ — otherwise the
+                                // model is prefacing with prose and the rest
+                                // of the stream will fail terminal validation.
+                                // Save the user the wasted tokens by emitting
+                                // validation_error immediately.
+                                if !prefix_decided {
+                                    if let Some(first) =
+                                        content_buf.chars().find(|c| !c.is_whitespace())
+                                    {
+                                        prefix_decided = true;
+                                        if first != '{' && first != '[' {
+                                            prefix_failed = true;
+                                            let event = serde_json::json!({
+                                                "type": "validation_error",
+                                                "raw": content_buf,
+                                                "error": format!(
+                                                    "expected JSON object or array, got {first:?} at first non-whitespace character"
+                                                ),
+                                                "kind": "json_prefix",
+                                            });
+                                            let _ = tx.send(StreamEvent::Chunk(event.to_string()));
+                                        }
+                                    }
+                                }
                             }
                             let event_str = format!(
                                 r#"{{"type":"delta_content","content":{}}}"#,
@@ -279,7 +315,9 @@ async fn pump_openai_assembled(
     // emit either validated_output or validation_error before done. When
     // output_schema is also present, run jsonschema against the parsed
     // value; only emit validated_output on schema-conformant input.
-    if validate_json && !content_buf.is_empty() {
+    // Skip the terminal block when V0.2.1's prefix-check already fired
+    // a validation_error so the stream emits one error, not two.
+    if validate_json && !content_buf.is_empty() && !prefix_failed {
         match serde_json::from_str::<Value>(&content_buf) {
             Ok(parsed) => {
                 let schema_ok = match output_schema.as_ref() {
@@ -423,10 +461,7 @@ async fn pump_anthropic(
                     {
                         // message_start nests usage under message.usage
                         let normalised = if ev.event == "message_start" {
-                            parsed
-                                .get("message")
-                                .cloned()
-                                .unwrap_or(parsed.clone())
+                            parsed.get("message").cloned().unwrap_or(parsed.clone())
                         } else {
                             parsed.clone()
                         };

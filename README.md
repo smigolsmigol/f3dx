@@ -145,7 +145,7 @@ f3dx is not a multi-agent orchestration framework. It is the runtime layer below
 
 ## Sibling project
 
-[`tracewright`](https://github.com/smigolsmigol/tracewright) — replay-driven eval over f3dx and pydantic-ai JSONL traces. Take a recorded trace, swap the candidate model, get a per-case diff. Closes the loop from "we have observability" to "we have regression tests".
+[`tracewright`](https://github.com/smigolsmigol/tracewright) — `pip install tracewright`. Trace-replay adapter for [`pydantic-evals`](https://ai.pydantic.dev/evals/). Read an f3dx or pydantic-ai logfire JSONL trace, get a `pydantic_evals.Dataset` you can run any pydantic-evals evaluator against (`LLMJudge`, `EqualsExpected`, custom embedding-cosine). Closes the loop from "we have observability" to "we have regression tests".
 
 ## Composition with ATLAS-RTC (Cruz)
 
@@ -268,7 +268,8 @@ msg = llm.invoke('hi')                          # sync + ainvoke both routed via
 - Gemini adapter (Phase C.2)
 - MCP V0.1: SSE + streamable-HTTP transports + sampling callback bridge (V0 ships stdio only; covers Claude Desktop + every npm-based server + python-based servers via `python -m`)
 - Parent-child trace context propagation between AgentRuntime span and HTTP child spans (needs Python-side context bridge)
-- Phase E V0.2.1: incremental per-token schema validation in the streaming pump (V0.2 ships terminal-time `output_schema=` via `jsonschema-rs`; per-token needs a streaming JSON parser + schema state machine on top, planned next)
+- Phase E V0.2.2: full streaming JSON parser (V0.2.1 ships fail-fast on invalid JSON prefix — catches the dominant LLM-prefaces-with-prose case in 5-10 tokens; bracket-balance + per-token schema FSM are the next steps)
+- Phase E V0.2.3: per-token JSON Schema state machine (V0.2 ships terminal-time `output_schema=` via `jsonschema-rs`; full per-token schema FSM lands once V0.2.2 is in)
 - Phase G V0.3: Rust-side parquet sink (V0.2 ships `AppendingParquetWriter` + `tail_jsonl_to_parquet` Python-side via pyarrow under `f3dx[arrow]`; a Rust-native sink would skip the JSONL middlefile but adds ~30MB to the wheel — deferred unless requested)
 - `langchain-f3dx` standalone PyPI package per LangChain partner-package convention (today integrated via the `f3dx[langchain]` extra; standalone-package split happens before LangChain partner-registry submission)
 

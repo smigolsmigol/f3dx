@@ -12,12 +12,12 @@
 //! field intact, so user code can dispatch on it cleanly.
 
 use crate::otel;
-use crate::stream::{spawn_anthropic_pump, PyAnthropicStream};
+use crate::stream::{PyAnthropicStream, spawn_anthropic_pump};
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyString};
-use reqwest::header::{HeaderMap, HeaderValue, CONTENT_TYPE, USER_AGENT};
 use reqwest::Client;
+use reqwest::header::{CONTENT_TYPE, HeaderMap, HeaderValue, USER_AGENT};
 use serde_json::Value;
 use std::sync::Arc;
 use std::time::Duration;
@@ -121,9 +121,15 @@ impl PyAnthropicClient {
             .and_then(|v| v.as_str())
             .unwrap_or("unknown")
             .to_string();
-        let temperature = req.get("temperature").and_then(|v| v.as_f64()).map(|x| x as f32);
+        let temperature = req
+            .get("temperature")
+            .and_then(|v| v.as_f64())
+            .map(|x| x as f32);
         let top_p = req.get("top_p").and_then(|v| v.as_f64()).map(|x| x as f32);
-        let max_tokens = req.get("max_tokens").and_then(|v| v.as_u64()).map(|x| x as u32);
+        let max_tokens = req
+            .get("max_tokens")
+            .and_then(|v| v.as_u64())
+            .map(|x| x as u32);
         let mut span = otel::start_http_span("messages", "anthropic", &model);
         if let Some(s) = span.as_mut() {
             otel::add_request_params(s, temperature, top_p, max_tokens, Some(false));
@@ -180,9 +186,15 @@ impl PyAnthropicClient {
             .and_then(|v| v.as_str())
             .unwrap_or("unknown")
             .to_string();
-        let temperature = req.get("temperature").and_then(|v| v.as_f64()).map(|x| x as f32);
+        let temperature = req
+            .get("temperature")
+            .and_then(|v| v.as_f64())
+            .map(|x| x as f32);
         let top_p = req.get("top_p").and_then(|v| v.as_f64()).map(|x| x as f32);
-        let max_tokens = req.get("max_tokens").and_then(|v| v.as_u64()).map(|x| x as u32);
+        let max_tokens = req
+            .get("max_tokens")
+            .and_then(|v| v.as_u64())
+            .map(|x| x as u32);
         let mut span = otel::start_http_span("messages", "anthropic", &model);
         if let Some(s) = span.as_mut() {
             otel::add_request_params(s, temperature, top_p, max_tokens, Some(true));

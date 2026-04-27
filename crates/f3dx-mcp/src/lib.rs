@@ -23,8 +23,8 @@ use rmcp::transport::{StreamableHttpClientTransport, TokioChildProcess, stdio};
 use rmcp::{ClientHandler, ServiceExt};
 use std::borrow::Cow;
 use std::collections::HashMap;
-use std::sync::Mutex;
 use std::sync::Arc;
+use std::sync::Mutex;
 use tokio::process::Command;
 use tokio::runtime::Runtime;
 
@@ -192,7 +192,12 @@ impl PyMCPClient {
     /// content of the first text-kind content block, or the JSON-encoded
     /// full response when no text block is present.
     #[pyo3(signature = (name, arguments = None))]
-    fn call_tool(&self, py: Python<'_>, name: String, arguments: Option<String>) -> PyResult<String> {
+    fn call_tool(
+        &self,
+        py: Python<'_>,
+        name: String,
+        arguments: Option<String>,
+    ) -> PyResult<String> {
         let arg_obj: Option<serde_json::Map<String, serde_json::Value>> = match arguments {
             None => None,
             Some(s) => {

@@ -3,8 +3,10 @@ streaming-validation verify (Phase E). The model "speaks" JSON
 fragmented across N delta chunks; the final chunk has finish_reason.
 
 Toggle MODE:
-  good = emit a complete valid JSON object across the deltas
-  bad  = emit a truncated / malformed JSON to exercise validation_error
+  good   = emit a complete valid JSON object across the deltas
+  bad    = emit a truncated / malformed JSON to exercise validation_error
+  prose  = emit prose preface ("Sure, here is the JSON:") before the JSON,
+           exercises Phase E V0.2.1 incremental fail-fast on bad prefix
 """
 
 from __future__ import annotations
@@ -16,6 +18,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 GOOD_JSON = '{"intent":"search","query":"forensic intel","filters":{"resident_id":"0000862794","k":5}}'
 BAD_JSON = '{"intent":"search","query":"forensic intel",'  # truncated — invalid
+PROSE_JSON = 'Sure, here is the JSON you requested:\n\n{"intent":"search","query":"x"}'
 
 
 def chunk(payload: dict) -> bytes:
@@ -59,7 +62,9 @@ class Handler(BaseHTTPRequestHandler):
             }],
         }))
 
-        body = GOOD_JSON if self.mode == "good" else BAD_JSON
+        body = {"good": GOOD_JSON, "bad": BAD_JSON, "prose": PROSE_JSON}.get(
+            self.mode, GOOD_JSON
+        )
         for piece in fragment(body, self.n_fragments):
             self.wfile.write(chunk({
                 "id": "chatcmpl-json", "object": "chat.completion.chunk", "created": 1,
