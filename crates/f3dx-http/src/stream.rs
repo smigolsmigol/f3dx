@@ -241,44 +241,43 @@ async fn pump_openai_assembled(
                         finish_reason = Some(reason);
                     }
 
-                    if let Some(content) = choice.delta.content.as_ref() {
-                        if !content.is_empty() {
-                            if validate_json {
-                                content_buf.push_str(content);
-                                // Phase E V0.2.1 early-fail: once we see the
-                                // first non-whitespace character of accumulated
-                                // content, it must be { or [ — otherwise the
-                                // model is prefacing with prose and the rest
-                                // of the stream will fail terminal validation.
-                                // Save the user the wasted tokens by emitting
-                                // validation_error immediately.
-                                if !prefix_decided {
-                                    if let Some(first) =
-                                        content_buf.chars().find(|c| !c.is_whitespace())
-                                    {
-                                        prefix_decided = true;
-                                        if first != '{' && first != '[' {
-                                            prefix_failed = true;
-                                            let event = serde_json::json!({
-                                                "type": "validation_error",
-                                                "raw": content_buf,
-                                                "error": format!(
-                                                    "expected JSON object or array, got {first:?} at first non-whitespace character"
-                                                ),
-                                                "kind": "json_prefix",
-                                            });
-                                            let _ = tx.send(StreamEvent::Chunk(event.to_string()));
-                                        }
-                                    }
+                    if let Some(content) = choice.delta.content.as_ref()
+                        && !content.is_empty()
+                    {
+                        if validate_json {
+                            content_buf.push_str(content);
+                            // Phase E V0.2.1 early-fail: once we see the
+                            // first non-whitespace character of accumulated
+                            // content, it must be { or [ — otherwise the
+                            // model is prefacing with prose and the rest
+                            // of the stream will fail terminal validation.
+                            // Save the user the wasted tokens by emitting
+                            // validation_error immediately.
+                            if !prefix_decided
+                                && let Some(first) =
+                                    content_buf.chars().find(|c| !c.is_whitespace())
+                            {
+                                prefix_decided = true;
+                                if first != '{' && first != '[' {
+                                    prefix_failed = true;
+                                    let event = serde_json::json!({
+                                        "type": "validation_error",
+                                        "raw": content_buf,
+                                        "error": format!(
+                                            "expected JSON object or array, got {first:?} at first non-whitespace character"
+                                        ),
+                                        "kind": "json_prefix",
+                                    });
+                                    let _ = tx.send(StreamEvent::Chunk(event.to_string()));
                                 }
                             }
-                            let event_str = format!(
-                                r#"{{"type":"delta_content","content":{}}}"#,
-                                serde_json::to_string(content).unwrap_or_else(|_| "\"\"".into())
-                            );
-                            if tx.send(StreamEvent::Chunk(event_str)).is_err() {
-                                return Ok(());
-                            }
+                        }
+                        let event_str = format!(
+                            r#"{{"type":"delta_content","content":{}}}"#,
+                            serde_json::to_string(content).unwrap_or_else(|_| "\"\"".into())
+                        );
+                        if tx.send(StreamEvent::Chunk(event_str)).is_err() {
+                            return Ok(());
                         }
                     }
 
@@ -378,10 +377,10 @@ fn accumulate_tool_calls(tcs: &Value, partials: &mut BTreeMap<u64, PartialToolCa
             entry.id = id.to_string();
         }
         if let Some(func) = tc.get("function") {
-            if let Some(name) = func.get("name").and_then(|v| v.as_str()) {
-                if !name.is_empty() {
-                    entry.name = name.to_string();
-                }
+            if let Some(name) = func.get("name").and_then(|v| v.as_str())
+                && !name.is_empty()
+            {
+                entry.name = name.to_string();
             }
             if let Some(args) = func.get("arguments").and_then(|v| v.as_str()) {
                 entry.arguments_buf.push_str(args);
@@ -455,18 +454,17 @@ async fn pump_anthropic(
             Ok(ev) => {
                 // Usage lands in two places: message_start.message.usage (input_tokens),
                 // message_delta.usage (output_tokens). Cheap parse + apply.
-                if matches!(ev.event.as_str(), "message_start" | "message_delta") {
-                    if let (Some(s), Ok(parsed)) =
+                if matches!(ev.event.as_str(), "message_start" | "message_delta")
+                    && let (Some(s), Ok(parsed)) =
                         (span.as_mut(), serde_json::from_str::<Value>(&ev.data))
-                    {
-                        // message_start nests usage under message.usage
-                        let normalised = if ev.event == "message_start" {
-                            parsed.get("message").cloned().unwrap_or(parsed.clone())
-                        } else {
-                            parsed.clone()
-                        };
-                        otel::add_anthropic_response(s, &normalised);
-                    }
+                {
+                    // message_start nests usage under message.usage
+                    let normalised = if ev.event == "message_start" {
+                        parsed.get("message").cloned().unwrap_or(parsed.clone())
+                    } else {
+                        parsed.clone()
+                    };
+                    otel::add_anthropic_response(s, &normalised);
                 }
                 if ev.event == "message_stop" {
                     if tx.send(StreamEvent::Chunk(ev.data)).is_err() {

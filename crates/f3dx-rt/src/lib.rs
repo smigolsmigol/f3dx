@@ -265,18 +265,18 @@ impl AgentRuntime {
                 serde_json::Value::Number(serde_json::Number::from(usage_output)),
             );
         }
-        if f3dx_trace::capture_messages_enabled() {
-            if let Some(obj) = row.as_object_mut() {
-                obj.insert("prompt".into(), serde_json::Value::String(captured_prompt));
-                obj.insert(
-                    "system_prompt".into(),
-                    serde_json::Value::String(self.system_prompt.clone()),
-                );
-                obj.insert(
-                    "output".into(),
-                    serde_json::Value::String(final_answer.clone()),
-                );
-            }
+        if f3dx_trace::capture_messages_enabled()
+            && let Some(obj) = row.as_object_mut()
+        {
+            obj.insert("prompt".into(), serde_json::Value::String(captured_prompt));
+            obj.insert(
+                "system_prompt".into(),
+                serde_json::Value::String(self.system_prompt.clone()),
+            );
+            obj.insert(
+                "output".into(),
+                serde_json::Value::String(final_answer.clone()),
+            );
         }
         f3dx_trace::emit_trace_row(&row);
 

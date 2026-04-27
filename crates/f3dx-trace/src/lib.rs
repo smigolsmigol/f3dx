@@ -106,11 +106,11 @@ fn configure_otel(
 /// Force-flush + shutdown all configured exporters. Call on process exit.
 #[pyfunction]
 fn shutdown_otel() -> PyResult<()> {
-    if let Some(slot) = PROVIDER.get() {
-        if let Some(provider) = slot.lock().expect("provider mutex poisoned").take() {
-            let _ = provider.force_flush();
-            let _ = provider.shutdown();
-        }
+    if let Some(slot) = PROVIDER.get()
+        && let Some(provider) = slot.lock().expect("provider mutex poisoned").take()
+    {
+        let _ = provider.force_flush();
+        let _ = provider.shutdown();
     }
     Ok(())
 }

@@ -277,12 +277,12 @@ struct F3dxServerHandler {
 }
 
 impl ServerHandler for F3dxServerHandler {
+    #[allow(clippy::field_reassign_with_default)]
     fn get_info(&self) -> ServerInfo {
+        let mut tools_cap = ToolsCapability::default();
+        tools_cap.list_changed = Some(false);
         let mut capabilities = ServerCapabilities::default();
-        capabilities.tools = Some(ToolsCapability {
-            list_changed: Some(false),
-            ..Default::default()
-        });
+        capabilities.tools = Some(tools_cap);
         let mut implementation = Implementation::default();
         implementation.name = self.name.clone();
         implementation.version = self.version.clone();
@@ -293,6 +293,7 @@ impl ServerHandler for F3dxServerHandler {
         info
     }
 
+    #[allow(clippy::field_reassign_with_default)]
     async fn list_tools(
         &self,
         _request: Option<PaginatedRequestParams>,
