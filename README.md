@@ -65,7 +65,7 @@ All benches live under `bench/`, all use the stdlib mock servers in the same dir
 
 ## Architecture
 
-Cargo workspace, four crates, one PyPI package:
+Cargo workspace, five crates, one PyPI package:
 
 ```
 f3dx/
@@ -74,6 +74,7 @@ f3dx/
     f3dx-rt/      agent runtime + concurrent tool dispatch
     f3dx-http/    LLM HTTP client (reqwest + native SSE + streaming JSON validation)
     f3dx-trace/   OpenTelemetry span emission (Logfire-compatible, gen_ai.* semconv)
+    f3dx-mcp/     Model Context Protocol client (rmcp + stdio transport)
 ```
 
 OpenAI-compatible endpoints (vLLM, Mistral, xAI, Groq, Together, Fireworks) all work via `f3dx.OpenAI` by setting `base_url`.
@@ -97,6 +98,15 @@ Streaming spans hold open until terminal chunk; usage attrs land when the closin
 
 Status: `Ok` on success, `Status::error("<msg>")` on HTTP failure.
 
+JSONL trace sink for downstream replay-eval tools:
+
+```python
+f3dx.configure_traces("traces.jsonl", capture_messages=True)
+# every AgentRuntime.run appends one row with prompt + system_prompt +
+# output (off by default; opt-in because PII-sensitive). Polars/DuckDB
+# scan via pl.scan_ndjson / duckdb.read_json. Replay via tracewright.
+```
+
 ## Layout
 
 ```
@@ -109,7 +119,7 @@ f3dx/
   python/f3dx/langchain/            langchain-openai integration (f3dx[langchain])
   pyproject.toml                    maturin build, optional extras
   Cargo.toml                        cargo workspace root + workspace lints
-  rust-toolchain.toml               pinned to 1.86.0 for reproducible builds
+  rust-toolchain.toml               pinned to 1.90.0 for reproducible builds
   .github/workflows/ci.yml          ubuntu/macos/windows + clippy gate + built-wheel install
   .github/workflows/release.yml     glibc/musl x86_64+aarch64 wheels + macos x86_64+aarch64 + windows + sdist + OIDC PyPI publish
 ```
@@ -155,12 +165,18 @@ isinstance(client, openai.OpenAI)               # True — passes isinstance che
 out = client.chat.completions.create(...)       # routes through Rust, returns
                                                 # openai.types.chat.ChatCompletion
 
+# pip install f3dx[anthropic-compat]
+from f3dx.compat import AsyncAnthropic         # subclass anthropic.AsyncAnthropic
+client = AsyncAnthropic(api_key=...)           # also intercepts client.beta.messages.create
+                                               # for pydantic-ai's BetaMessage validation path
+
 # pip install f3dx[pydantic-ai]
-from f3dx.pydantic_ai import openai_model, F3dxCapability
+from f3dx.pydantic_ai import openai_model, anthropic_model, F3dxCapability
 from pydantic_ai import Agent
 cap = F3dxCapability()
 agent = Agent(openai_model('gpt-4', api_key=...), capabilities=[cap])
 result = await agent.run('hi')                  # f3dx-routed HTTP, capability counts requests
+# anthropic_model('claude-haiku-4', api_key=...) likewise
 
 # pip install f3dx[langchain]
 from f3dx.langchain import ChatOpenAI
@@ -171,13 +187,11 @@ msg = llm.invoke('hi')                          # sync + ainvoke both routed via
 ## What's not here yet
 
 - Gemini adapter (Phase C.2)
-- `f3dx.pydantic_ai.anthropic_model` — needs the `AsyncAnthropic` compat shim (next release)
+- MCP V0.1: SSE + streamable-HTTP transports + sampling callback bridge (V0 ships stdio only; covers Claude Desktop + every npm-based server + python-based servers via `python -m`)
 - Parent-child trace context propagation between AgentRuntime span and HTTP child spans (needs Python-side context bridge)
-- jsonschema validation in `validate_json` mode (V0 only checks parseable JSON; Pydantic schema check coming)
-- True fail-fast incremental JSON validation (V0 validates at terminal; V0.2 will use XGrammar as the streaming validator backend)
-- Arrow trace store + parquet/DuckDB sinks (V0.1 of Phase G)
-- `langchain-f3dx` standalone PyPI package per LangChain partner-package convention (today the integration ships as the `f3dx[langchain]` extra; standalone-package split happens before LangChain partner-registry submission)
-- Public PyPI release (gated only on PyPI trusted-publisher config — see release workflow)
+- Phase E V0.2: incremental schema validation in the streaming pump via `jsonschema-rs` (V0 validates parseable JSON at terminal only; XGrammar backend was investigated and parked because Python-only bindings would force a per-token GIL re-acquire that kills the streaming win)
+- Phase G V0.1: Arrow trace store + parquet/DuckDB sinks (V0 ships JSONL append-only)
+- `langchain-f3dx` standalone PyPI package per LangChain partner-package convention (today integrated via the `f3dx[langchain]` extra; standalone-package split happens before LangChain partner-registry submission)
 
 ## License
 
