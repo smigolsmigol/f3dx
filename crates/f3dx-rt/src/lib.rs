@@ -47,6 +47,19 @@ pub struct MockModelResponse {
     pub content: String,
     #[serde(default)]
     pub tool_calls: Vec<ToolCallReq>,
+    /// Optional per-turn token usage. When present, AgentRuntime accumulates
+    /// across turns and emits totals on the JSONL trace row. Mirrors what
+    /// real OpenAI/Anthropic responses carry; mock harnesses set it explicitly.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub usage: Option<MockUsage>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct MockUsage {
+    #[serde(default)]
+    pub input_tokens: u64,
+    #[serde(default)]
+    pub output_tokens: u64,
 }
 
 // ---------- agent runtime ----------
@@ -127,6 +140,8 @@ impl AgentRuntime {
         let mut tool_calls_executed: usize = 0;
         let mut final_answer = String::new();
         let mut iter_done: usize = 0;
+        let mut usage_input: u64 = 0;
+        let mut usage_output: u64 = 0;
 
         for iter_idx in 0..self.max_iterations {
             iter_done = iter_idx + 1;
@@ -146,6 +161,10 @@ impl AgentRuntime {
                     ))
                 })?;
 
+            if let Some(u) = &response.usage {
+                usage_input = usage_input.saturating_add(u.input_tokens);
+                usage_output = usage_output.saturating_add(u.output_tokens);
+            }
             messages.push(Message {
                 role: "assistant".into(),
                 content: response.content.clone(),
@@ -219,6 +238,16 @@ impl AgentRuntime {
                 .collect::<Vec<_>>(),
             "messages_count": messages.len(),
         });
+        if let Some(obj) = row.as_object_mut() {
+            obj.insert(
+                "input_tokens".into(),
+                serde_json::Value::Number(serde_json::Number::from(usage_input)),
+            );
+            obj.insert(
+                "output_tokens".into(),
+                serde_json::Value::Number(serde_json::Number::from(usage_output)),
+            );
+        }
         if f3dx_trace::capture_messages_enabled() {
             if let Some(obj) = row.as_object_mut() {
                 obj.insert("prompt".into(), serde_json::Value::String(captured_prompt));

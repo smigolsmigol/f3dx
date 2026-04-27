@@ -49,6 +49,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install maturin pytest openai anthropic pydantic-ai langchain-openai
+          pip install "tracewright @ git+https://github.com/smigolsmigol/tracewright"
 
       - name: Build wheel
         run: maturin build --release --out dist
@@ -101,6 +102,9 @@ jobs:
 
       - name: Verify — AsyncAnthropic + pydantic-ai anthropic_model
         run: python bench/verify_anthropic_compat.py
+
+      - name: Verify — token counts in JSONL trace rows
+        run: python bench/verify_token_counts.py
 
       - name: Verify — MCP stdio client (npx server-everything)
         run: python bench/verify_mcp.py

@@ -15,7 +15,7 @@ use pyo3::types::{PyDict, PyList};
 use rmcp::ServiceExt;
 use rmcp::model::CallToolRequestParams;
 use rmcp::service::RunningService;
-use rmcp::transport::TokioChildProcess;
+use rmcp::transport::{StreamableHttpClientTransport, TokioChildProcess};
 use std::sync::Arc;
 use tokio::process::Command;
 use tokio::runtime::Runtime;
@@ -58,6 +58,36 @@ impl PyMCPClient {
                     .await
                     .map_err(|e| PyRuntimeError::new_err(format!("mcp handshake failed: {e}")))
             })?;
+
+        Ok(Self {
+            runtime: Arc::new(runtime),
+            service: Arc::new(service),
+        })
+    }
+
+    /// Connect to a remote MCP server over streamable-HTTP.
+    ///
+    /// `url` is the server's MCP endpoint (e.g. https://my-mcp.example.com/mcp).
+    /// The transport handles the JSON-RPC handshake plus server-sent-event
+    /// streaming for incremental tool results. Auth headers go in the URL
+    /// query string today; explicit header support lands in V0.2 once we
+    /// thread reqwest's HeaderMap through the transport builder.
+    #[staticmethod]
+    fn streamable_http(url: String) -> PyResult<Self> {
+        let runtime = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(1)
+            .enable_all()
+            .thread_name("f3dx-mcp")
+            .build()
+            .map_err(|e| PyRuntimeError::new_err(format!("tokio runtime build: {e}")))?;
+
+        let service = runtime.block_on(async {
+            let transport = StreamableHttpClientTransport::from_uri(url.as_str());
+            ()
+                .serve(transport)
+                .await
+                .map_err(|e| PyRuntimeError::new_err(format!("mcp http handshake failed: {e}")))
+        })?;
 
         Ok(Self {
             runtime: Arc::new(runtime),
