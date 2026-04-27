@@ -3,9 +3,9 @@ resolver = "2"
 members = ["crates/f3dx-py", "crates/f3dx-rt", "crates/f3dx-http", "crates/f3dx-trace", "crates/f3dx-mcp"]
 
 [workspace.package]
-version = "0.0.7"
+version = "0.0.8"
 edition = "2024"
-authors = ["Federico Coccoli <fed1@f3d1.dev>"]
+authors = ["Federico Benini <smigolsmigol@protonmail.com>"]
 description = "Rust runtime for Python AI apps. Drop-in for openai/anthropic SDKs."
 license = "MIT"
 repository = "https://github.com/smigolsmigol/f3dx"

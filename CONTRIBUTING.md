@@ -49,7 +49,7 @@ bench/        Reproducible benches + stdlib mock servers
 
 Bugs: open a GitHub issue with a minimal reproducer (Python script + Rust panic if any).
 
-Security: do not file public issues. Email `fed1@f3d1.dev` with the details. We follow coordinated disclosure.
+Security: do not file public issues. Email `smigolsmigol@protonmail.com` with the details. We follow coordinated disclosure.
 
 ## License
 

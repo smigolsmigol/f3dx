@@ -2,7 +2,7 @@
 
 ## Reporting a vulnerability
 
-Email `fed1@f3d1.dev` with:
+Email `smigolsmigol@protonmail.com` with:
 
 - A minimal reproducer
 - The version of `f3dx` affected
