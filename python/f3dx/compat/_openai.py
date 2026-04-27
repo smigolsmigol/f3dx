@@ -36,6 +36,32 @@ def _strip_omit(d: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+class _F3dxRawResponse:
+    """Mimics openai.APIResponse[ChatCompletion] enough for langchain.
+
+    langchain-openai 1.x calls `client.with_raw_response.create(**payload)` then
+    `raw.parse()`. We pre-parse on the f3dx side and return the same object
+    via parse(). headers/http_response stay empty since the rust client doesn't
+    surface them today.
+    """
+
+    def __init__(self, parsed: Any) -> None:
+        self._parsed = parsed
+        self.headers: dict[str, str] = {}
+        self.http_response: Any = None
+
+    def parse(self) -> Any:
+        return self._parsed
+
+
+class _F3dxRawResponseProxy:
+    def __init__(self, create_fn: Any) -> None:
+        self._create_fn = create_fn
+
+    def create(self, **kwargs: Any) -> _F3dxRawResponse:
+        return _F3dxRawResponse(self._create_fn(**kwargs))
+
+
 class OpenAI(_openai.OpenAI):
     """Drop-in for openai.OpenAI with chat.completions.create routed via f3dx Rust.
 
@@ -60,6 +86,7 @@ class OpenAI(_openai.OpenAI):
             http2=f3dx_opts.get("http2", True),
         )
         self.chat.completions.create = self._f3dx_create  # type: ignore[method-assign]
+        self.chat.completions.with_raw_response = _F3dxRawResponseProxy(self._f3dx_create)
 
     def _f3dx_create(self, **kwargs: Any) -> ChatCompletion | Iterator[ChatCompletionChunk]:
         if kwargs.pop("stream", False):

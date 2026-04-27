@@ -106,6 +106,7 @@ f3dx/
   python/f3dx/__init__.py           core Python wrapper (AgentRuntime, OpenAI, Anthropic, configure_otel)
   python/f3dx/compat/               opt-in subclass shims (f3dx[openai-compat])
   python/f3dx/pydantic_ai/          pydantic-ai integration (f3dx[pydantic-ai])
+  python/f3dx/langchain/            langchain-openai integration (f3dx[langchain])
   pyproject.toml                    maturin build, optional extras
   Cargo.toml                        cargo workspace root + workspace lints
   rust-toolchain.toml               pinned to 1.86.0 for reproducible builds
@@ -139,6 +140,11 @@ from pydantic_ai import Agent
 cap = F3dxCapability()
 agent = Agent(openai_model('gpt-4', api_key=...), capabilities=[cap])
 result = await agent.run('hi')                  # f3dx-routed HTTP, capability counts requests
+
+# pip install f3dx[langchain]
+from f3dx.langchain import ChatOpenAI
+llm = ChatOpenAI(model='gpt-4', api_key=...)    # subclass of langchain_openai.ChatOpenAI
+msg = llm.invoke('hi')                          # sync + ainvoke both routed via f3dx
 ```
 
 ## What's not here yet
@@ -149,7 +155,7 @@ result = await agent.run('hi')                  # f3dx-routed HTTP, capability c
 - jsonschema validation in `validate_json` mode (V0 only checks parseable JSON; Pydantic schema check coming)
 - True fail-fast incremental JSON validation (V0 validates at terminal; V0.2 will use XGrammar as the streaming validator backend)
 - Arrow trace store + parquet/DuckDB sinks (V0.1 of Phase G)
-- `langchain-f3dx` (separate PyPI package per LangChain partner-package convention)
+- `langchain-f3dx` standalone PyPI package per LangChain partner-package convention (today the integration ships as the `f3dx[langchain]` extra; standalone-package split happens before LangChain partner-registry submission)
 - Public PyPI release (gated only on PyPI trusted-publisher config — see release workflow)
 
 ## License

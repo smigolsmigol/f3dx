@@ -38,6 +38,27 @@ def _strip_omit(d: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+class _F3dxAsyncRawResponse:
+    """Async sibling of _F3dxRawResponse for langchain's ainvoke path."""
+
+    def __init__(self, parsed: Any) -> None:
+        self._parsed = parsed
+        self.headers: dict[str, str] = {}
+        self.http_response: Any = None
+
+    def parse(self) -> Any:
+        return self._parsed
+
+
+class _F3dxAsyncRawResponseProxy:
+    def __init__(self, create_fn: Any) -> None:
+        self._create_fn = create_fn
+
+    async def create(self, **kwargs: Any) -> _F3dxAsyncRawResponse:
+        parsed = await self._create_fn(**kwargs)
+        return _F3dxAsyncRawResponse(parsed)
+
+
 class AsyncOpenAI(_openai.AsyncOpenAI):
     """Drop-in for openai.AsyncOpenAI with chat.completions.create routed via f3dx.
 
@@ -62,6 +83,7 @@ class AsyncOpenAI(_openai.AsyncOpenAI):
             http2=f3dx_opts.get("http2", True),
         )
         self.chat.completions.create = self._f3dx_create  # type: ignore[method-assign]
+        self.chat.completions.with_raw_response = _F3dxAsyncRawResponseProxy(self._f3dx_create)
 
     async def _f3dx_create(self, **kwargs: Any) -> ChatCompletion | AsyncIterator[ChatCompletionChunk]:
         if kwargs.pop("stream", False):
