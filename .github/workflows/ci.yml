@@ -95,3 +95,9 @@ jobs:
 
       - name: Verify — f3dx[langchain] integration end-to-end
         run: python bench/verify_langchain.py
+
+      - name: Verify — capture_messages opt-in trace enrichment
+        run: python bench/verify_capture_messages.py
+
+      - name: Verify — AsyncAnthropic + pydantic-ai anthropic_model
+        run: python bench/verify_anthropic_compat.py

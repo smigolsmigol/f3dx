@@ -4,7 +4,8 @@ Importing requires the matching extra:
     pip install f3dx[openai-compat]
 """
 
+from f3dx.compat._async_anthropic import AsyncAnthropic
 from f3dx.compat._async_openai import AsyncOpenAI
 from f3dx.compat._openai import OpenAI
 
-__all__ = ["AsyncOpenAI", "OpenAI"]
+__all__ = ["AsyncAnthropic", "AsyncOpenAI", "OpenAI"]

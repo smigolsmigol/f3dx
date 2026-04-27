@@ -13,14 +13,16 @@ from __future__ import annotations
 from typing import Any
 
 try:
+    from pydantic_ai.models.anthropic import AnthropicModel
     from pydantic_ai.models.openai import OpenAIChatModel
+    from pydantic_ai.providers.anthropic import AnthropicProvider
     from pydantic_ai.providers.openai import OpenAIProvider
 except ImportError as e:
     raise ImportError(
         "f3dx.pydantic_ai requires pydantic-ai. Install with: pip install f3dx[pydantic-ai]"
     ) from e
 
-from f3dx.compat import AsyncOpenAI
+from f3dx.compat import AsyncAnthropic, AsyncOpenAI
 
 
 def openai_model(
@@ -46,14 +48,18 @@ def anthropic_model(
     *,
     api_key: str | None = None,
     base_url: str | None = None,
+    f3dx_options: dict[str, Any] | None = None,
     **model_kwargs: Any,
-) -> Any:
-    """Reserved: pydantic-ai AnthropicModel factory routed through f3dx Rust.
+) -> AnthropicModel:
+    """Build a pydantic-ai AnthropicModel whose HTTP path goes through f3dx.
 
-    Not yet implemented — needs an AsyncAnthropic compat shim. Tracked as part
-    of the v0.1 roadmap. Raises NotImplementedError today.
+    Mirror of openai_model: provider injection via the documented
+    AnthropicProvider(anthropic_client=...) hook. f3dx_options forwards
+    {'http2': bool, 'timeout': float} to the rust client.
     """
-    raise NotImplementedError(
-        "f3dx[pydantic-ai] anthropic_model() is not implemented yet. "
-        "The AsyncAnthropic compat shim ships in the next release."
+    client = AsyncAnthropic(api_key=api_key, base_url=base_url, f3dx_options=f3dx_options)
+    return AnthropicModel(
+        model_name,
+        provider=AnthropicProvider(anthropic_client=client),
+        **model_kwargs,
     )

@@ -38,6 +38,17 @@ use std::time::Duration;
 /// V0.1 upgrades to Arrow/parquet.
 static JSONL_SINK: StdOnceLock<Mutex<Option<PathBuf>>> = StdOnceLock::new();
 
+/// Whether the JSONL sink should include the prompt + system_prompt + output
+/// in each row (PII-sensitive, default false). Opt-in for downstream replay
+/// tools like tracewright that need to rebuild the original request.
+static CAPTURE_MESSAGES: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
+
+/// Read the current capture-messages flag from the rt without locking.
+pub fn capture_messages_enabled() -> bool {
+    CAPTURE_MESSAGES.load(std::sync::atomic::Ordering::Relaxed)
+}
+
 static TRACER: OnceCell<Tracer> = OnceCell::new();
 static PROVIDER: OnceCell<Mutex<Option<TracerProvider>>> = OnceCell::new();
 
@@ -113,13 +124,16 @@ pub fn tracer() -> Option<&'static Tracer> {
 
 /// Configure a JSONL trace sink. Each AgentRuntime.run appends one row.
 /// Path is opened append-only on each emit; safe under concurrent runs.
-/// Set path=None to disable.
+/// Set path=None to disable. capture_messages=True opts in to PII-sensitive
+/// fields (prompt, system_prompt, output, model) — required by downstream
+/// replay tools like tracewright but off by default.
 #[pyfunction]
-#[pyo3(signature = (path = None))]
-fn configure_traces(path: Option<String>) -> PyResult<()> {
+#[pyo3(signature = (path = None, capture_messages = false))]
+fn configure_traces(path: Option<String>, capture_messages: bool) -> PyResult<()> {
     let slot = JSONL_SINK.get_or_init(|| Mutex::new(None));
     let mut guard = slot.lock().expect("trace sink mutex poisoned");
     *guard = path.map(PathBuf::from);
+    CAPTURE_MESSAGES.store(capture_messages, std::sync::atomic::Ordering::Relaxed);
     Ok(())
 }
 
@@ -152,6 +166,11 @@ fn trace_sink_path() -> Option<String> {
     guard.as_ref().map(|p| p.to_string_lossy().to_string())
 }
 
+#[pyfunction]
+fn trace_capture_messages() -> bool {
+    capture_messages_enabled()
+}
+
 /// Smoke-test entry: emit a single test span to verify the configured
 /// exporter works end-to-end. Returns the trace_id as a hex string.
 #[pyfunction]
@@ -181,5 +200,6 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(emit_test_span, m)?)?;
     m.add_function(wrap_pyfunction!(configure_traces, m)?)?;
     m.add_function(wrap_pyfunction!(trace_sink_path, m)?)?;
+    m.add_function(wrap_pyfunction!(trace_capture_messages, m)?)?;
     Ok(())
 }

@@ -116,6 +116,7 @@ impl AgentRuntime {
                 tool_call_id: None,
             });
         }
+        let captured_prompt = prompt.clone();
         messages.push(Message {
             role: "user".into(),
             content: prompt,
@@ -194,8 +195,11 @@ impl AgentRuntime {
         }
 
         // Phase G V0: emit one JSONL row per run when a sink is configured.
-        // No-op when configure_traces hasn't been called.
-        let row = serde_json::json!({
+        // No-op when configure_traces hasn't been called. When the sink was
+        // configured with capture_messages=True, the row carries prompt +
+        // system_prompt + output so downstream replay tools (tracewright)
+        // can rebuild the original request. Off by default (PII-safe).
+        let mut row = serde_json::json!({
             "ts": std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .map(|d| d.as_secs_f64())
@@ -215,6 +219,16 @@ impl AgentRuntime {
                 .collect::<Vec<_>>(),
             "messages_count": messages.len(),
         });
+        if f3dx_trace::capture_messages_enabled() {
+            if let Some(obj) = row.as_object_mut() {
+                obj.insert("prompt".into(), serde_json::Value::String(captured_prompt));
+                obj.insert(
+                    "system_prompt".into(),
+                    serde_json::Value::String(self.system_prompt.clone()),
+                );
+                obj.insert("output".into(), serde_json::Value::String(final_answer.clone()));
+            }
+        }
         f3dx_trace::emit_trace_row(&row);
 
         let out = PyDict::new(py);
