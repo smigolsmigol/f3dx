@@ -122,3 +122,157 @@ def parquet_metadata(parquet_path: str | Path) -> dict[str, Any]:
         "columns": pf.schema.names,
         "bytes": parquet_path.stat().st_size,
     }
+
+
+class AppendingParquetWriter:
+    """Live-append parquet writer for long-running f3dx processes.
+
+    Wraps `pyarrow.parquet.ParquetWriter` with a batched append API. Rows
+    buffer in memory until `batch_size` is hit, then flush as one parquet
+    row group. `close()` (or context-manager exit) flushes the partial
+    final group + closes the file. Safe to interrupt mid-write — the
+    parquet file remains readable up to the last flushed row group.
+
+    Usage:
+
+        with AppendingParquetWriter("traces.parquet", batch_size=200) as w:
+            for row in stream_of_dicts:
+                w.append_row(row)
+        # parquet file now closed, all rows flushed
+
+    Schema is the canonical f3dx-rt JSONL trace shape; pass `schema=` to
+    override for non-trace use cases.
+    """
+
+    def __init__(
+        self,
+        parquet_path: str | Path,
+        *,
+        batch_size: int = 100,
+        row_group_size: int = 1000,
+        compression: str = "snappy",
+        schema: pa.Schema | None = None,
+    ) -> None:
+        self.path = Path(parquet_path)
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self.batch_size = batch_size
+        self.row_group_size = row_group_size
+        self.schema = schema or _CANONICAL_SCHEMA
+        self._buffer: list[dict[str, Any]] = []
+        self._writer = pq.ParquetWriter(
+            str(self.path),
+            self.schema,
+            compression=compression,
+        )
+        self._rows_written = 0
+
+    def append_row(self, row: dict[str, Any]) -> None:
+        """Buffer one row. Flushes when batch_size hit."""
+        self._buffer.append(row)
+        if len(self._buffer) >= self.batch_size:
+            self._flush()
+
+    def append_rows(self, rows: list[dict[str, Any]]) -> None:
+        """Buffer many rows. Triggers flushes as batch_size boundaries are crossed."""
+        for r in rows:
+            self.append_row(r)
+
+    def _flush(self) -> None:
+        if not self._buffer:
+            return
+        columns: dict[str, list[Any]] = {f.name: [] for f in self.schema}
+        for row in self._buffer:
+            for field in self.schema:
+                name = field.name
+                if name == "tool_calls_json":
+                    raw = row.get("tool_calls")
+                    columns[name].append(json.dumps(raw) if raw is not None else None)
+                else:
+                    columns[name].append(row.get(name))
+        table = pa.Table.from_pydict(columns, schema=self.schema)
+        self._writer.write_table(table, row_group_size=self.row_group_size)
+        self._rows_written += len(self._buffer)
+        self._buffer.clear()
+
+    def close(self) -> int:
+        """Flush remaining buffer + close the writer. Returns total rows written."""
+        if self._writer is None:
+            return self._rows_written
+        try:
+            self._flush()
+        finally:
+            self._writer.close()
+            self._writer = None  # type: ignore[assignment]
+        return self._rows_written
+
+    @property
+    def rows_written(self) -> int:
+        """Rows flushed to disk (excludes anything still buffered)."""
+        return self._rows_written
+
+    def __enter__(self) -> "AppendingParquetWriter":
+        return self
+
+    def __exit__(self, exc_type: Any, exc: Any, tb: Any) -> None:
+        self.close()
+
+
+def tail_jsonl_to_parquet(
+    jsonl_path: str | Path,
+    parquet_path: str | Path,
+    *,
+    poll_seconds: float = 1.0,
+    batch_size: int = 100,
+    row_group_size: int = 1000,
+    compression: str = "snappy",
+    until: Any = None,
+) -> int:
+    """Tail a growing JSONL trace and append new rows to a parquet file.
+
+    Useful for long-running f3dx production processes: run the agent loop
+    for hours/days while a sidecar process tails the JSONL and writes a
+    queryable parquet.
+
+    `until` is a predicate `() -> bool`; tail_jsonl_to_parquet returns
+    when it fires. Pass `until=lambda: time.time() > deadline` for a
+    time-bounded run, `until=lambda: writer.rows_written >= N` for a
+    row-count-bounded run, or `until=None` for an infinite tail (caller
+    interrupts via SIGINT / KeyboardInterrupt).
+
+    Returns total rows written.
+    """
+    import time
+
+    jsonl_path = Path(jsonl_path)
+    last_pos = 0
+    writer = AppendingParquetWriter(
+        parquet_path,
+        batch_size=batch_size,
+        row_group_size=row_group_size,
+        compression=compression,
+    )
+    try:
+        while True:
+            if jsonl_path.exists():
+                with open(jsonl_path, encoding="utf-8") as f:
+                    f.seek(last_pos)
+                    new_rows: list[dict[str, Any]] = []
+                    for line in f:
+                        line = line.strip()
+                        if not line:
+                            continue
+                        try:
+                            new_rows.append(json.loads(line))
+                        except json.JSONDecodeError:
+                            continue
+                    last_pos = f.tell()
+                if new_rows:
+                    writer.append_rows(new_rows)
+            if until is not None and until():
+                break
+            try:
+                time.sleep(poll_seconds)
+            except KeyboardInterrupt:
+                break
+    finally:
+        return writer.close()

@@ -115,5 +115,8 @@ jobs:
       - name: Verify — JSONL traces -> parquet (Phase G V0.1)
         run: python bench/verify_parquet.py
 
+      - name: Verify — live parquet sink (Phase G V0.2)
+        run: python bench/verify_parquet_live.py
+
       - name: Verify — MCP stdio client (npx server-everything)
         run: python bench/verify_mcp.py

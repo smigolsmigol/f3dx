@@ -109,8 +109,12 @@ f3dx.configure_traces("traces.jsonl", capture_messages=True)
 
 # Or convert to columnar parquet for fast analytics:
 # pip install f3dx[arrow]
-from f3dx.analytics import jsonl_to_parquet
-jsonl_to_parquet("traces.jsonl", "traces.parquet")
+from f3dx.analytics import jsonl_to_parquet, tail_jsonl_to_parquet
+jsonl_to_parquet("traces.jsonl", "traces.parquet")             # batch convert
+# Or live-tail a long-running production process:
+tail_jsonl_to_parquet("traces.jsonl", "traces.parquet",
+                      poll_seconds=10, batch_size=200,
+                      until=lambda: time.time() > deadline)
 # pl.scan_parquet("traces.parquet").filter(pl.col("output_tokens") > 100).collect()
 ```
 
@@ -214,7 +218,7 @@ msg = llm.invoke('hi')                          # sync + ainvoke both routed via
 - MCP V0.1: SSE + streamable-HTTP transports + sampling callback bridge (V0 ships stdio only; covers Claude Desktop + every npm-based server + python-based servers via `python -m`)
 - Parent-child trace context propagation between AgentRuntime span and HTTP child spans (needs Python-side context bridge)
 - Phase E V0.2.1: incremental per-token schema validation in the streaming pump (V0.2 ships terminal-time `output_schema=` via `jsonschema-rs`; per-token needs a streaming JSON parser + schema state machine on top, planned next)
-- Phase G V0.2: live parquet sink (V0.1 ships JSONL append-only + the `f3dx.analytics.jsonl_to_parquet` converter under `f3dx[arrow]`; rolling-parquet with row-group flush is the next step)
+- Phase G V0.3: Rust-side parquet sink (V0.2 ships `AppendingParquetWriter` + `tail_jsonl_to_parquet` Python-side via pyarrow under `f3dx[arrow]`; a Rust-native sink would skip the JSONL middlefile but adds ~30MB to the wheel — deferred unless requested)
 - `langchain-f3dx` standalone PyPI package per LangChain partner-package convention (today integrated via the `f3dx[langchain]` extra; standalone-package split happens before LangChain partner-registry submission)
 
 ## License

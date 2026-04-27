@@ -21,6 +21,16 @@ size). V0.1 is the converter — covers every f3dx user today since the
 JSONL sink is the only one shipping.
 """
 
-from f3dx.analytics._parquet import jsonl_to_parquet, parquet_metadata
+from f3dx.analytics._parquet import (
+    AppendingParquetWriter,
+    jsonl_to_parquet,
+    parquet_metadata,
+    tail_jsonl_to_parquet,
+)
 
-__all__ = ["jsonl_to_parquet", "parquet_metadata"]
+__all__ = [
+    "AppendingParquetWriter",
+    "jsonl_to_parquet",
+    "parquet_metadata",
+    "tail_jsonl_to_parquet",
+]
