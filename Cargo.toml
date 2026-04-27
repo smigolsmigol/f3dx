@@ -6,7 +6,7 @@ members = ["crates/f3dx-py", "crates/f3dx-rt", "crates/f3dx-http", "crates/f3dx-
 version = "0.0.3"
 edition = "2024"
 authors = ["Federico Coccoli <fed1@f3d1.dev>"]
-description = "F3D1 Rust-core runtime for pydantic-ai. Polars for agents."
+description = "Rust runtime for Python AI apps. Drop-in for openai/anthropic SDKs."
 license = "MIT"
 repository = "https://github.com/smigolsmigol/f3dx"
 

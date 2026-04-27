@@ -20,6 +20,21 @@ from openai.types.chat import ChatCompletion, ChatCompletionChunk
 
 from f3dx import OpenAI as _F3dxOpenAI
 
+_SENTINELS: tuple[type, ...] = ()
+try:
+    from openai._types import NotGiven as _NotGiven, Omit as _Omit
+    _SENTINELS = (_Omit, _NotGiven)
+except ImportError:
+    pass
+
+
+def _strip_omit(d: dict[str, Any]) -> dict[str, Any]:
+    return {
+        k: v
+        for k, v in d.items()
+        if v is not None and (not _SENTINELS or not isinstance(v, _SENTINELS))
+    }
+
 
 class OpenAI(_openai.OpenAI):
     """Drop-in for openai.OpenAI with chat.completions.create routed via f3dx Rust.
@@ -48,8 +63,8 @@ class OpenAI(_openai.OpenAI):
 
     def _f3dx_create(self, **kwargs: Any) -> ChatCompletion | Iterator[ChatCompletionChunk]:
         if kwargs.pop("stream", False):
-            return self._f3dx_create_stream(kwargs)
-        out = self._f3dx.chat_completions_create(kwargs)
+            return self._f3dx_create_stream(_strip_omit(kwargs))
+        out = self._f3dx.chat_completions_create(_strip_omit(kwargs))
         return ChatCompletion.model_validate(out)
 
     def _f3dx_create_stream(self, request: dict[str, Any]) -> Iterator[ChatCompletionChunk]:

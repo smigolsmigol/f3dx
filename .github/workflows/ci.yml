@@ -48,7 +48,7 @@ jobs:
       - name: Install maturin + bench deps
         run: |
           python -m pip install --upgrade pip
-          pip install maturin pytest openai anthropic
+          pip install maturin pytest openai anthropic pydantic-ai
 
       - name: Build wheel
         run: maturin build --release --out dist
@@ -89,3 +89,6 @@ jobs:
 
       - name: Verify — openai-compat subclass shim
         run: python bench/verify_compat.py
+
+      - name: Verify — f3dx[pydantic-ai] integration end-to-end
+        run: python bench/verify_pydantic_ai.py

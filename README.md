@@ -101,12 +101,16 @@ Status: `Ok` on success, `Status::error("<msg>")` on HTTP failure.
 
 ```
 f3dx/
-  bench/                     reproducible benches + stdlib mock servers
-  crates/                    cargo workspace member crates
-  python/f3dx/__init__.py    Python wrapper
-  pyproject.toml             maturin build
-  Cargo.toml                 cargo workspace root
-  .github/workflows/ci.yml   ubuntu/macos/windows + python 3.12 + bench-as-test
+  bench/                            reproducible benches + verify scripts + stdlib mock servers
+  crates/                           cargo workspace member crates
+  python/f3dx/__init__.py           core Python wrapper (AgentRuntime, OpenAI, Anthropic, configure_otel)
+  python/f3dx/compat/               opt-in subclass shims (f3dx[openai-compat])
+  python/f3dx/pydantic_ai/          pydantic-ai integration (f3dx[pydantic-ai])
+  pyproject.toml                    maturin build, optional extras
+  Cargo.toml                        cargo workspace root + workspace lints
+  rust-toolchain.toml               pinned to 1.86.0 for reproducible builds
+  .github/workflows/ci.yml          ubuntu/macos/windows + clippy gate + built-wheel install
+  .github/workflows/release.yml     glibc/musl x86_64+aarch64 wheels + macos x86_64+aarch64 + windows + sdist + OIDC PyPI publish
 ```
 
 ## What this is not
@@ -117,14 +121,35 @@ f3dx is not an inference engine. Use vLLM, TGI, mistral.rs, llama.cpp, or any Op
 
 f3dx is not a multi-agent orchestration framework. It is the runtime layer below frameworks like pydantic-ai, LangChain, LlamaIndex, CrewAI, AutoGen.
 
+## Adapter packages
+
+```python
+# pip install f3dx[openai-compat]
+from f3dx.compat import OpenAI, AsyncOpenAI    # subclass openai.OpenAI / openai.AsyncOpenAI
+import openai
+client = OpenAI(api_key=...)
+isinstance(client, openai.OpenAI)               # True — passes isinstance checks in
+                                                # instructor, litellm, smolagents, langchain
+out = client.chat.completions.create(...)       # routes through Rust, returns
+                                                # openai.types.chat.ChatCompletion
+
+# pip install f3dx[pydantic-ai]
+from f3dx.pydantic_ai import openai_model, F3dxCapability
+from pydantic_ai import Agent
+cap = F3dxCapability()
+agent = Agent(openai_model('gpt-4', api_key=...), capabilities=[cap])
+result = await agent.run('hi')                  # f3dx-routed HTTP, capability counts requests
+```
+
 ## What's not here yet
 
 - Gemini adapter (Phase C.2)
+- `f3dx.pydantic_ai.anthropic_model` — needs the `AsyncAnthropic` compat shim (next release)
 - Parent-child trace context propagation between AgentRuntime span and HTTP child spans (needs Python-side context bridge)
 - jsonschema validation in `validate_json` mode (V0 only checks parseable JSON; Pydantic schema check coming)
 - True fail-fast incremental JSON validation (V0 validates at terminal; V0.2 will use XGrammar as the streaming validator backend)
 - Arrow trace store + parquet/DuckDB sinks (V0.1 of Phase G)
-- Adapter packages: `f3dx[openai-compat]` (subclass shim for openai.OpenAI isinstance compatibility), `f3dx[pydantic-ai]` (Capability + WrapperModel sub-package), `langchain-f3dx` (separate PyPI package per LangChain partner-package convention)
+- `langchain-f3dx` (separate PyPI package per LangChain partner-package convention)
 - Public PyPI release (gated only on PyPI trusted-publisher config — see release workflow)
 
 ## License
