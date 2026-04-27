@@ -164,6 +164,19 @@ result = controlled_completion(
 
 [ATLAS-RTC](https://github.com/cruz209/ATLAS-RTC) (Christopher Cruz, MIT) is a runtime control layer that enforces structured outputs at decode time — drift detection + logit masking + rollback during generation. f3dx's runtime sits at a different layer (transport + observability + agent loop). They compose: ATLAS-RTC owns the per-token control loop, f3dx owns the request transport and trace emission. Most useful with local vLLM / HuggingFace where decode-time control is reachable; cloud APIs (OpenAI, Anthropic) don't expose that surface.
 
+```python
+# pip install f3dx[vigil]
+from f3dx.vigil import f3dx_jsonl_to_vigil_events
+
+f3dx.configure_traces("traces.jsonl", capture_messages=True)
+# ... agent runs ...
+f3dx_jsonl_to_vigil_events("traces.jsonl", "events.jsonl", actor="robin_a")
+# Robin B (cruz209/V.I.G.I.L) reads events.jsonl, builds Roses/Buds/Thorns
+# diagnosis, proposes prompt + code adaptations.
+```
+
+[V.I.G.I.L / Robin B](https://github.com/cruz209/V.I.G.I.L) is the reflective-supervisor sibling: reads a JSONL event log, builds an "emotional bank" appraisal (Roses / Buds / Thorns), diagnoses reliability issues, proposes prompt + code patches. f3dx provides the runtime that produces the trace; this bridge converts the trace into VIGIL's expected event shape.
+
 ## MCP client
 
 ```python

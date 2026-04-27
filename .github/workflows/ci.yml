@@ -118,5 +118,8 @@ jobs:
       - name: Verify — live parquet sink (Phase G V0.2)
         run: python bench/verify_parquet_live.py
 
+      - name: Verify — VIGIL events.jsonl bridge (Cruz composition)
+        run: python bench/verify_vigil.py
+
       - name: Verify — MCP stdio client (npx server-everything)
         run: python bench/verify_mcp.py
