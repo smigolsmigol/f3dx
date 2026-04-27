@@ -192,7 +192,24 @@ result = client.call_tool("get-sum", json.dumps({"a": 7, "b": 35}))
 # 'The sum of 7 and 35 is 42.'
 ```
 
-`f3dx-mcp` is a sibling cargo crate; the rmcp Rust SDK drives the JSON-RPC handshake + stdio transport. SSE + streamable-HTTP transports + sampling callback bridge land in V0.1.
+`f3dx-mcp` is a sibling cargo crate; the rmcp Rust SDK drives the JSON-RPC handshake. Stdio + streamable-HTTP transports + sampling-callback bridge ship today; SSE-only transport (rare in practice — streamable-HTTP subsumes it for MCP) skipped.
+
+**Sampling callback** — the MCP server can ask the connected client for a model completion via `sampling/createMessage`. Pass a Python callback to `MCPClient.stdio` / `streamable_http` and it fires on every such request:
+
+```python
+def my_sampling(messages_json: str, system_prompt: str) -> str:
+    # messages_json is the serialized rmcp message list; reach for whatever
+    # field the request exposes. Run any model — f3dx.OpenAI, f3dx.Anthropic,
+    # pydantic-ai Agent, ATLAS-RTC controlled_completion — and return text.
+    return run_my_model(messages_json, system_prompt)
+
+client = f3dx.MCPClient.stdio(
+    "python", ["-m", "my_mcp_server"],
+    sampling_callback=my_sampling,
+)
+```
+
+Without a callback, sampling requests get the standard "method not supported" error.
 
 ## Adapter packages
 

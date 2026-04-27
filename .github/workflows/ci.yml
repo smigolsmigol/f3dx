@@ -48,8 +48,7 @@ jobs:
       - name: Install maturin + bench deps
         run: |
           python -m pip install --upgrade pip
-          pip install maturin pytest openai anthropic pydantic-ai langchain-openai
-          pip install "tracewright @ git+https://github.com/smigolsmigol/tracewright"
+          pip install maturin pytest openai anthropic pydantic-ai langchain-openai tracewright
 
       - name: Build wheel
         run: maturin build --release --out dist
@@ -123,3 +122,9 @@ jobs:
 
       - name: Verify — MCP stdio client (npx server-everything)
         run: python bench/verify_mcp.py
+
+      - name: Install mcp Python package for sampling verify
+        run: pip install "mcp>=1.10"
+
+      - name: Verify — MCP sampling-callback bridge (V0.2)
+        run: python bench/verify_mcp_sampling.py
