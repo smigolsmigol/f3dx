@@ -24,7 +24,7 @@ jobs:
           python-version: "3.12"
       - uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: "1.86.0"
+          toolchain: "1.90.0"
       - name: Build wheel (manylinux abi3)
         uses: PyO3/maturin-action@v1
         env:
@@ -56,7 +56,7 @@ jobs:
           python-version: "3.12"
       - uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: "1.86.0"
+          toolchain: "1.90.0"
       - name: Build wheel (musllinux abi3)
         uses: PyO3/maturin-action@v1
         with:
@@ -84,7 +84,7 @@ jobs:
           python-version: "3.12"
       - uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: "1.86.0"
+          toolchain: "1.90.0"
       - name: Build wheel (macos abi3)
         uses: PyO3/maturin-action@v1
         with:
@@ -111,7 +111,7 @@ jobs:
           python-version: "3.12"
       - uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: "1.86.0"
+          toolchain: "1.90.0"
       - name: Build wheel (windows abi3)
         uses: PyO3/maturin-action@v1
         with:

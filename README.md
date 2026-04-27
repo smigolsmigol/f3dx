@@ -126,6 +126,23 @@ f3dx is not a multi-agent orchestration framework. It is the runtime layer below
 
 [`tracewright`](https://github.com/smigolsmigol/tracewright) — replay-driven eval over f3dx and pydantic-ai JSONL traces. Take a recorded trace, swap the candidate model, get a per-case diff. Closes the loop from "we have observability" to "we have regression tests".
 
+## MCP client
+
+```python
+import f3dx, json
+
+# spawn an MCP server over stdio (npm-based, Python-based, any binary)
+client = f3dx.MCPClient.stdio("npx", ["-y", "@modelcontextprotocol/server-everything"])
+
+for tool in client.list_tools():
+    print(tool["name"], tool["description"])
+
+result = client.call_tool("get-sum", json.dumps({"a": 7, "b": 35}))
+# 'The sum of 7 and 35 is 42.'
+```
+
+`f3dx-mcp` is a sibling cargo crate; the rmcp Rust SDK drives the JSON-RPC handshake + stdio transport. SSE + streamable-HTTP transports + sampling callback bridge land in V0.1.
+
 ## Adapter packages
 
 ```python

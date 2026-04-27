@@ -9,8 +9,9 @@ Surfaces shipped:
 from f3dx._f3dx import (  # type: ignore[attr-defined]
     AgentRuntime,
     AnthropicClient as Anthropic,
+    MCPClient,
     OpenAIClient as OpenAI,
     __version__,
 )
 
-__all__ = ["AgentRuntime", "Anthropic", "OpenAI", "__version__"]
+__all__ = ["AgentRuntime", "Anthropic", "MCPClient", "OpenAI", "__version__"]

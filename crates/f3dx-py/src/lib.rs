@@ -37,6 +37,7 @@ fn _f3dx(m: &Bound<'_, PyModule>) -> PyResult<()> {
     f3dx_rt::register(m)?;
     f3dx_http::register(m)?;
     f3dx_trace::register(m)?;
+    f3dx_mcp::register(m)?;
     m.add("__version__", env!("CARGO_PKG_VERSION"))?;
     Ok(())
 }

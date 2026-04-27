@@ -15,6 +15,7 @@ crate-type = ["cdylib", "rlib"]
 f3dx-rt = { path = "../f3dx-rt" }
 f3dx-http = { path = "../f3dx-http" }
 f3dx-trace = { path = "../f3dx-trace" }
+f3dx-mcp = { path = "../f3dx-mcp" }
 pyo3 = { workspace = true, features = ["extension-module"] }
 
 [lints]

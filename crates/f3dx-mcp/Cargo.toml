@@ -1,0 +1,21 @@
+[package]
+name = "f3dx-mcp"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "f3dx MCP client: connect to Model Context Protocol servers from the agent loop"
+repository.workspace = true
+
+[lib]
+name = "f3dx_mcp"
+
+[dependencies]
+pyo3 = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { version = "1.40", features = ["rt-multi-thread", "process", "io-util", "macros"] }
+rmcp = { version = "1.5", default-features = false, features = ["client", "transport-child-process"] }
+
+[lints]
+workspace = true
