@@ -84,9 +84,13 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.flush()
 
 
+class _ReusableServer(ThreadingHTTPServer):
+    allow_reuse_address = True
+
+
 def serve(port: int, n_tokens: int) -> ThreadingHTTPServer:
     Handler.n_tokens = n_tokens
-    server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
+    server = _ReusableServer(("127.0.0.1", port), Handler)
     t = threading.Thread(target=server.serve_forever, daemon=True)
     t.start()
     return server

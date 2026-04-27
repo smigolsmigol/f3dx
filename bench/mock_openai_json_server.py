@@ -85,10 +85,14 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.flush()
 
 
+class _ReusableServer(ThreadingHTTPServer):
+    allow_reuse_address = True
+
+
 def serve(port: int, mode: str = "good", n_fragments: int = 8) -> ThreadingHTTPServer:
     Handler.mode = mode
     Handler.n_fragments = n_fragments
-    server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
+    server = _ReusableServer(("127.0.0.1", port), Handler)
     t = threading.Thread(target=server.serve_forever, daemon=True)
     t.start()
     return server

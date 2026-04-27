@@ -75,9 +75,15 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.flush()
 
 
+class _ReusableServer(ThreadingHTTPServer):
+    # CI re-binds the same port across consecutive bench iterations; without
+    # SO_REUSEADDR the second serve() hits TIME_WAIT and crashes Errno 98.
+    allow_reuse_address = True
+
+
 def serve(port: int, n_chunks: int) -> ThreadingHTTPServer:
     Handler.n_chunks = n_chunks
-    server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
+    server = _ReusableServer(("127.0.0.1", port), Handler)
     t = threading.Thread(target=server.serve_forever, daemon=True)
     t.start()
     return server
