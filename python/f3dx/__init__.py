@@ -10,8 +10,9 @@ from f3dx._f3dx import (  # type: ignore[attr-defined]
     AgentRuntime,
     AnthropicClient as Anthropic,
     MCPClient,
+    MCPServer,
     OpenAIClient as OpenAI,
     __version__,
 )
 
-__all__ = ["AgentRuntime", "Anthropic", "MCPClient", "OpenAI", "__version__"]
+__all__ = ["AgentRuntime", "Anthropic", "MCPClient", "MCPServer", "OpenAI", "__version__"]

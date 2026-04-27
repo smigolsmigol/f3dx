@@ -211,6 +211,27 @@ client = f3dx.MCPClient.stdio(
 
 Without a callback, sampling requests get the standard "method not supported" error.
 
+**Server-side** — expose Python callables AS MCP tools that other MCP clients (Claude Desktop, IDE plugins, other f3dx-built clients) can call:
+
+```python
+import f3dx, json
+
+def add(args_json: str) -> str:
+    args = json.loads(args_json)
+    return str(args["a"] + args["b"])
+
+server = f3dx.MCPServer(name="my-server", version="0.0.1")
+server.add_tool(
+    "add",
+    add,
+    description="Add two numbers.",
+    input_schema={"type": "object", "properties": {"a": {"type": "number"}, "b": {"type": "number"}}, "required": ["a", "b"]},
+)
+server.serve_stdio()  # blocks until client closes
+```
+
+f3dx now ships the full bidirectional MCP surface: client (stdio + streamable-HTTP), server (stdio), and sampling-callback bridge so server-issued completions route back through user-controlled model code.
+
 ## Adapter packages
 
 ```python

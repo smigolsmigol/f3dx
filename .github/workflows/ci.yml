@@ -128,3 +128,6 @@ jobs:
 
       - name: Verify — MCP sampling-callback bridge (V0.2)
         run: python bench/verify_mcp_sampling.py
+
+      - name: Verify — MCP server-side support (f3dx.MCPServer)
+        run: python bench/verify_mcp_server.py

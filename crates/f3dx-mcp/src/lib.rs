@@ -12,13 +12,18 @@
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
+use rmcp::handler::server::ServerHandler;
 use rmcp::model::{
-    CallToolRequestParams, CreateMessageRequestParams, CreateMessageResult, ErrorData,
-    SamplingMessage,
+    CallToolRequestParams, CallToolResult, Content, CreateMessageRequestParams,
+    CreateMessageResult, ErrorData, Implementation, ListToolsResult, PaginatedRequestParams,
+    ProtocolVersion, SamplingMessage, ServerCapabilities, ServerInfo, Tool, ToolsCapability,
 };
-use rmcp::service::{RequestContext, RoleClient, RunningService};
-use rmcp::transport::{StreamableHttpClientTransport, TokioChildProcess};
+use rmcp::service::{RequestContext, RoleClient, RoleServer, RunningService};
+use rmcp::transport::{StreamableHttpClientTransport, TokioChildProcess, stdio};
 use rmcp::{ClientHandler, ServiceExt};
+use std::borrow::Cow;
+use std::collections::HashMap;
+use std::sync::Mutex;
 use std::sync::Arc;
 use tokio::process::Command;
 use tokio::runtime::Runtime;
@@ -240,8 +245,202 @@ fn build_runtime() -> PyResult<Runtime> {
         .map_err(|e| PyRuntimeError::new_err(format!("tokio runtime build: {e}")))
 }
 
-/// Register f3dx-mcp's pyclass into a parent Python module.
+// ====================== SERVER SIDE ====================== //
+
+/// One Python-callable tool registered on the server.
+#[derive(Clone)]
+struct RegisteredTool {
+    description: Option<String>,
+    /// JSON Schema describing the tool's input. Stored as a serde Value
+    /// so the rmcp Tool struct can carry it without round-tripping.
+    input_schema: serde_json::Value,
+    /// `(arguments_json: str) -> str` Python callable. Called from a
+    /// spawn_blocking thread that reacquires the GIL.
+    callback: Arc<Py<PyAny>>,
+}
+
+/// Server handler that dispatches tool calls to Python callables.
+///
+/// Tools are registered at construction time (or via add_tool) and
+/// dispatched dynamically from a HashMap, since they're not known at
+/// compile time the way rmcp's `#[tool_router]` macro assumes.
+#[derive(Clone)]
+struct F3dxServerHandler {
+    name: String,
+    version: String,
+    tools: Arc<Mutex<HashMap<String, RegisteredTool>>>,
+}
+
+impl ServerHandler for F3dxServerHandler {
+    fn get_info(&self) -> ServerInfo {
+        let mut capabilities = ServerCapabilities::default();
+        capabilities.tools = Some(ToolsCapability {
+            list_changed: Some(false),
+            ..Default::default()
+        });
+        let mut implementation = Implementation::default();
+        implementation.name = self.name.clone();
+        implementation.version = self.version.clone();
+        let mut info = ServerInfo::default();
+        info.protocol_version = ProtocolVersion::default();
+        info.capabilities = capabilities;
+        info.server_info = implementation;
+        info
+    }
+
+    async fn list_tools(
+        &self,
+        _request: Option<PaginatedRequestParams>,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<ListToolsResult, ErrorData> {
+        let guard = self.tools.lock().expect("tools mutex poisoned");
+        let tools: Vec<Tool> = guard
+            .iter()
+            .map(|(name, t)| {
+                let schema_obj = match &t.input_schema {
+                    serde_json::Value::Object(map) => map.clone(),
+                    _ => serde_json::Map::new(),
+                };
+                let mut tool = Tool::default();
+                tool.name = Cow::Owned(name.clone());
+                tool.description = t.description.clone().map(Cow::Owned);
+                tool.input_schema = Arc::new(schema_obj);
+                tool
+            })
+            .collect();
+        let mut result = ListToolsResult::default();
+        result.tools = tools;
+        Ok(result)
+    }
+
+    async fn call_tool(
+        &self,
+        request: CallToolRequestParams,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let name = request.name.to_string();
+        let cb = {
+            let guard = self.tools.lock().expect("tools mutex poisoned");
+            guard.get(&name).map(|t| Arc::clone(&t.callback))
+        };
+        let Some(cb) = cb else {
+            return Err(ErrorData::invalid_params(
+                format!("unknown tool: {name}"),
+                None,
+            ));
+        };
+
+        let args_json = serde_json::to_string(&request.arguments.unwrap_or_default())
+            .map_err(|e| ErrorData::internal_error(format!("args serialize: {e}"), None))?;
+
+        let response_text = tokio::task::spawn_blocking(move || -> Result<String, String> {
+            Python::with_gil(|py| {
+                let bound = cb.bind(py);
+                let out = bound
+                    .call1((args_json.as_str(),))
+                    .map_err(|e| format!("tool callback raised: {e}"))?;
+                out.extract::<String>()
+                    .map_err(|e| format!("tool callback returned non-string: {e}"))
+            })
+        })
+        .await
+        .map_err(|e| ErrorData::internal_error(format!("tool spawn_blocking: {e}"), None))?
+        .map_err(|e| ErrorData::internal_error(e, None))?;
+
+        Ok(CallToolResult::success(vec![Content::text(response_text)]))
+    }
+}
+
+/// Server-side MCP support: register Python callables as MCP tools and
+/// expose them over stdio. Lets f3dx-built agents be reachable by any
+/// MCP client (Claude Desktop, IDE plugins, other MCPClients).
+#[pyclass(name = "MCPServer", module = "f3dx._f3dx", unsendable)]
+pub struct PyMCPServer {
+    name: String,
+    version: String,
+    tools: Arc<Mutex<HashMap<String, RegisteredTool>>>,
+}
+
+#[pymethods]
+impl PyMCPServer {
+    #[new]
+    #[pyo3(signature = (name = "f3dx-mcp-server".to_string(), version = "0.0.0".to_string()))]
+    fn new(name: String, version: String) -> Self {
+        Self {
+            name,
+            version,
+            tools: Arc::new(Mutex::new(HashMap::new())),
+        }
+    }
+
+    /// Register a Python callable as an MCP tool.
+    ///
+    /// `name` and `description` show up in the MCP tool catalog. `input_schema`
+    /// is a JSON Schema dict for the tool's arguments. `callback` is a
+    /// Python callable `(arguments_json: str) -> str` invoked on every
+    /// `call_tool` request the server receives.
+    #[pyo3(signature = (name, callback, description = None, input_schema = None))]
+    fn add_tool(
+        &self,
+        py: Python<'_>,
+        name: String,
+        callback: Py<PyAny>,
+        description: Option<String>,
+        input_schema: Option<Bound<'_, PyAny>>,
+    ) -> PyResult<()> {
+        let schema_value = match input_schema {
+            None => serde_json::json!({"type": "object", "properties": {}}),
+            Some(obj) => {
+                let json_module = py.import("json")?;
+                let dumps = json_module.getattr("dumps")?;
+                let s: String = dumps.call1((obj,))?.extract()?;
+                serde_json::from_str(&s).map_err(|e| {
+                    PyValueError::new_err(format!("input_schema not JSON-serializable: {e}"))
+                })?
+            }
+        };
+
+        let tool = RegisteredTool {
+            description,
+            input_schema: schema_value,
+            callback: Arc::new(callback),
+        };
+        let mut guard = self.tools.lock().expect("tools mutex poisoned");
+        guard.insert(name, tool);
+        Ok(())
+    }
+
+    /// Run the server on stdin/stdout. Blocks until the client closes the
+    /// connection (or the host process is killed). Releases the GIL while
+    /// the runtime is serving so registered tool callbacks can re-acquire
+    /// it on the spawn_blocking thread.
+    fn serve_stdio(&self, py: Python<'_>) -> PyResult<()> {
+        let runtime = build_runtime()?;
+        let handler = F3dxServerHandler {
+            name: self.name.clone(),
+            version: self.version.clone(),
+            tools: Arc::clone(&self.tools),
+        };
+
+        py.allow_threads(|| {
+            runtime.block_on(async move {
+                let service = handler
+                    .serve(stdio())
+                    .await
+                    .map_err(|e| PyRuntimeError::new_err(format!("mcp serve_stdio: {e}")))?;
+                service
+                    .waiting()
+                    .await
+                    .map_err(|e| PyRuntimeError::new_err(format!("mcp server runtime: {e}")))?;
+                Ok::<_, PyErr>(())
+            })
+        })
+    }
+}
+
+/// Register f3dx-mcp's pyclasses into a parent Python module.
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyMCPClient>()?;
+    m.add_class::<PyMCPServer>()?;
     Ok(())
 }
