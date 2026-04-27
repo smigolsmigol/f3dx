@@ -3,7 +3,7 @@ resolver = "2"
 members = ["crates/f3dx-py", "crates/f3dx-rt", "crates/f3dx-http", "crates/f3dx-trace", "crates/f3dx-mcp"]
 
 [workspace.package]
-version = "0.0.9"
+version = "0.0.10"
 edition = "2024"
 authors = ["Federico Benini <smigolsmigol@protonmail.com>"]
 description = "Rust runtime for Python AI apps. Drop-in for openai/anthropic SDKs."

@@ -109,5 +109,11 @@ jobs:
       - name: Verify — schema-aware streaming validation (Phase E V0.2)
         run: python bench/verify_schema_validation.py
 
+      - name: Install pyarrow for analytics verify
+        run: pip install "pyarrow>=18.0"
+
+      - name: Verify — JSONL traces -> parquet (Phase G V0.1)
+        run: python bench/verify_parquet.py
+
       - name: Verify — MCP stdio client (npx server-everything)
         run: python bench/verify_mcp.py

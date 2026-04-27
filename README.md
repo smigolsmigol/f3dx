@@ -103,8 +103,15 @@ JSONL trace sink for downstream replay-eval tools:
 ```python
 f3dx.configure_traces("traces.jsonl", capture_messages=True)
 # every AgentRuntime.run appends one row with prompt + system_prompt +
-# output (off by default; opt-in because PII-sensitive). Polars/DuckDB
-# scan via pl.scan_ndjson / duckdb.read_json. Replay via tracewright.
+# output + input_tokens + output_tokens (capture_messages off by default;
+# opt-in because PII-sensitive). Polars/DuckDB scan via pl.scan_ndjson /
+# duckdb.read_json. Replay via tracewright.
+
+# Or convert to columnar parquet for fast analytics:
+# pip install f3dx[arrow]
+from f3dx.analytics import jsonl_to_parquet
+jsonl_to_parquet("traces.jsonl", "traces.parquet")
+# pl.scan_parquet("traces.parquet").filter(pl.col("output_tokens") > 100).collect()
 ```
 
 ## Layout
@@ -189,8 +196,8 @@ msg = llm.invoke('hi')                          # sync + ainvoke both routed via
 - Gemini adapter (Phase C.2)
 - MCP V0.1: SSE + streamable-HTTP transports + sampling callback bridge (V0 ships stdio only; covers Claude Desktop + every npm-based server + python-based servers via `python -m`)
 - Parent-child trace context propagation between AgentRuntime span and HTTP child spans (needs Python-side context bridge)
-- Phase E V0.2: incremental schema validation in the streaming pump via `jsonschema-rs` (V0 validates parseable JSON at terminal only; XGrammar backend was investigated and parked because Python-only bindings would force a per-token GIL re-acquire that kills the streaming win)
-- Phase G V0.1: Arrow trace store + parquet/DuckDB sinks (V0 ships JSONL append-only)
+- Phase E V0.2.1: incremental per-token schema validation in the streaming pump (V0.2 ships terminal-time `output_schema=` via `jsonschema-rs`; per-token needs a streaming JSON parser + schema state machine on top, planned next)
+- Phase G V0.2: live parquet sink (V0.1 ships JSONL append-only + the `f3dx.analytics.jsonl_to_parquet` converter under `f3dx[arrow]`; rolling-parquet with row-group flush is the next step)
 - `langchain-f3dx` standalone PyPI package per LangChain partner-package convention (today integrated via the `f3dx[langchain]` extra; standalone-package split happens before LangChain partner-registry submission)
 
 ## License

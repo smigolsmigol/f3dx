@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "f3dx"
-version = "0.0.9"
+version = "0.0.10"
 description = "Rust runtime for Python AI apps. Drop-in for openai/anthropic SDKs with native SSE streaming, an agent loop with concurrent tool dispatch, and Logfire-compatible OTel emission."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -24,6 +24,9 @@ dependencies = []
 [project.optional-dependencies]
 openai-compat = [
     "openai>=1.50",
+]
+arrow = [
+    "pyarrow>=18.0",
 ]
 anthropic-compat = [
     "anthropic>=0.40",
