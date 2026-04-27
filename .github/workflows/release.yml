@@ -27,12 +27,16 @@ jobs:
           toolchain: "1.86.0"
       - name: Build wheel (manylinux abi3)
         uses: PyO3/maturin-action@v1
+        env:
+          CFLAGS_aarch64_unknown_linux_gnu: "-D__ARM_ARCH=8"
         with:
           command: build
           args: --release --out dist
           target: ${{ matrix.target }}
           manylinux: auto
-          sccache: "true"
+          # sccache disabled: wraps the cross-compiler call and drops the
+          # assembler env, ring's chacha-armv8 asm needs __ARM_ARCH defined.
+          sccache: ${{ matrix.target == 'x86_64' }}
       - uses: actions/upload-artifact@v4
         with:
           name: wheels-linux-glibc-${{ matrix.target }}
