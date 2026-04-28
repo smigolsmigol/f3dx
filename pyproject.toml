@@ -4,11 +4,12 @@ build-backend = "maturin"
 
 [project]
 name = "f3dx-router"
-version = "0.0.2"
+version = "0.0.3"
 description = "In-process Rust router for LLM providers. Hedged-parallel + 429/5xx hot-swap < 1ms. Composes with hosted gateways like llmkit."
 readme = "README.md"
 requires-python = ">=3.10"
-license = { text = "MIT" }
+license = "MIT"
+license-files = ["LICENSE"]
 authors = [
     { name = "Federico Benini", email = "smigolsmigol@protonmail.com" },
 ]
