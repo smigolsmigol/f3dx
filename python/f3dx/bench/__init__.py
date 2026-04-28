@@ -1,7 +1,15 @@
 """f3dx.bench - opt-in telemetry to f3dx-bench.
 
-Default off. When enabled (env var F3DX_BENCH_OPTIN=1 or explicit
-f3dx.bench.opt_in()), every f3dx HTTP request emits one anonymized
+Default off. Two ways to enable:
+
+  - F3DX_BENCH_OPTIN=1                  -> queue is live; you call emit() yourself
+  - F3DX_BENCH_AUTO_ATTACH=1            -> the flywheel: tail f3dx-rt's JSONL
+                                           trace sink and forward every
+                                           AgentRuntime.run as a beacon
+
+Or call f3dx.bench.opt_in() / f3dx.bench.auto_attach() explicitly.
+
+When auto-attach is on, every AgentRuntime.run produces one anonymized
 TraceBeacon row to https://f3dx-bench-ingest.smigolsmigol.workers.dev.
 
 What goes on the wire (12 fields, ~200 bytes/beacon):
@@ -21,6 +29,7 @@ or get 401-rejected.
 See https://github.com/smigolsmigol/f3dx-bench/blob/main/docs/privacy.md
 for the full policy + forget-request endpoint.
 """
+
 from __future__ import annotations
 
 import json
@@ -30,7 +39,7 @@ import sys
 import threading
 import time
 import uuid
-from collections.abc import Iterable, Mapping
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
@@ -49,6 +58,9 @@ _state: dict[str, Any] = {
     "stop": threading.Event(),
     "wakeup": threading.Event(),  # signaled on emit(): worker drains immediately
     "in_flight": 0,  # batches currently mid-POST; flush() waits for this
+    "tail_thread": None,
+    "tail_stop": threading.Event(),
+    "tail_path": None,  # the JSONL the tailer is watching
 }
 
 
@@ -202,6 +214,113 @@ def flush(timeout: float = 10.0) -> None:
         time.sleep(0.05)
 
 
+def auto_attach(
+    *,
+    capture_messages: bool = True,
+    ingest_url: str = DEFAULT_INGEST_URL,
+    poll_seconds: float = 0.5,
+) -> str | None:
+    """Tail f3dx-rt's JSONL trace sink and pump rows into beacons.
+
+    Idempotent. Calls opt_in() if not already enabled, configures the
+    Rust trace sink (if user hasn't), and spawns a daemon thread that
+    reads new JSONL rows and forwards them via emit_from_trace_row.
+
+    capture_messages=True is the default so the model name reaches us.
+    The JSONL stays on the local disk; beacons NEVER carry prompt or
+    output content.
+
+    Returns the JSONL path being tailed, or None if f3dx-rt isn't
+    importable (no-op in that case).
+    """
+    try:
+        from f3dx import _f3dx as _rt  # type: ignore[attr-defined]
+    except ImportError:
+        return None
+
+    if not _state["enabled"]:
+        opt_in(ingest_url=ingest_url)
+
+    existing_path = _rt.trace_sink_path()
+    if existing_path is None:
+        # User hasn't configured a trace sink; pick a temp file under
+        # the same config dir as the install file so it's discoverable.
+        path = _config_dir() / "auto_attach.jsonl"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        _rt.configure_traces(str(path), capture_messages)
+        existing_path = str(path)
+
+    with _state["lock"]:
+        if _state["tail_thread"] is not None and _state["tail_thread"].is_alive():
+            return _state["tail_path"]
+        _state["tail_path"] = existing_path
+        _state["tail_stop"].clear()
+        t = threading.Thread(
+            target=_tail_loop,
+            args=(existing_path, poll_seconds),
+            daemon=True,
+            name="f3dx-bench-tail",
+        )
+        t.start()
+        _state["tail_thread"] = t
+
+    return existing_path
+
+
+def _tail_loop(jsonl_path: str, poll_seconds: float) -> None:
+    """Tail JSONL by byte-offset; forward each new row to emit_from_trace_row.
+
+    Survives the file not yet existing (the Rust sink creates it on
+    first AgentRuntime.run). Drops malformed lines silently.
+    """
+    last_pos = 0
+    while not _state["tail_stop"].is_set():
+        try:
+            try:
+                f = open(jsonl_path, encoding="utf-8")
+            except FileNotFoundError:
+                time.sleep(poll_seconds)
+                continue
+            with f:
+                f.seek(last_pos)
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        row = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    emit_from_trace_row(row)
+                last_pos = f.tell()
+        except OSError:
+            pass
+        time.sleep(poll_seconds)
+
+
+def _infer_provider(model: str) -> str:
+    """Map a model name to its provider for the bench dashboard split.
+
+    f3dx-rt's JSONL doesn't carry a provider field; the dashboard's
+    provider facet is useless if every auto_attach beacon is "other".
+    Trace row callers can override by setting row["provider"] explicitly.
+    """
+    m = model.lower()
+    if m.startswith(("gpt-", "o1-", "o3-", "o4-", "openai/")):
+        return "openai"
+    if m.startswith(("claude-", "anthropic/")):
+        return "anthropic"
+    if m.startswith(("gemini-", "google/")):
+        return "google"
+    if m.startswith(("mistral-", "mixtral-", "mistral/")):
+        return "mistral"
+    if m.startswith(("llama-", "meta/", "meta-llama/")):
+        return "meta"
+    if m.startswith(("deepseek-", "deepseek/")):
+        return "deepseek"
+    return "other"
+
+
 def emit_from_trace_row(row: Mapping[str, Any]) -> None:
     """Convenience: derive a beacon from an f3dx_trace row.
 
@@ -210,11 +329,14 @@ def emit_from_trace_row(row: Mapping[str, Any]) -> None:
     required fields are missing.
     """
     try:
+        model = str(row["model"])
         emit(
-            model=str(row["model"]),
-            provider=str(row.get("provider", "other")),
+            model=model,
+            provider=str(row.get("provider") or _infer_provider(model)),
             status_code=int(row.get("status_code", 200)),
-            latency_ms_total=int(row.get("latency_ms_total", row.get("duration_ms", 0))),
+            latency_ms_total=int(
+                row.get("latency_ms_total", row.get("duration_ms", 0))
+            ),
             input_tokens=int(row.get("input_tokens", 0)),
             output_tokens=int(row.get("output_tokens", 0)),
             region=row.get("region"),
@@ -282,6 +404,13 @@ if os.environ.get("F3DX_BENCH_OPTIN", "").strip() in {"1", "true", "yes"}:
     except Exception:  # noqa: BLE001 - never break import
         pass
 
+# F3DX_BENCH_AUTO_ATTACH=1 also wires the JSONL tailer (the flywheel).
+if os.environ.get("F3DX_BENCH_AUTO_ATTACH", "").strip() in {"1", "true", "yes"}:
+    try:
+        auto_attach()
+    except Exception:  # noqa: BLE001 - never break import
+        pass
+
 
 __all__ = [
     "opt_in",
@@ -290,6 +419,7 @@ __all__ = [
     "install_file_path",
     "emit",
     "emit_from_trace_row",
+    "auto_attach",
     "flush",
     "DEFAULT_INGEST_URL",
     "SCHEMA_VERSION",
