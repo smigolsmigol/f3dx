@@ -1,5 +1,5 @@
 #![allow(clippy::result_large_err)]
-//! f3dx-cache — content-addressable LLM response cache.
+//! f3dx-cache - content-addressable LLM response cache.
 //!
 //! Three tables in one redb file:
 //!   requests:  fingerprint -> canonicalized request bytes (JCS)

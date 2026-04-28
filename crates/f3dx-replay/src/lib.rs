@@ -1,13 +1,13 @@
-//! f3dx-replay — read JSONL/parquet trace bundles, replay against a
+//! f3dx-replay - read JSONL/parquet trace bundles, replay against a
 //! target config, emit diff report.
 //!
 //! Layered determinism modes (DiffMode):
-//!   Bytes      — exact byte equality. Strictest. Used for structured-output
+//!   Bytes      - exact byte equality. Strictest. Used for structured-output
 //!                tests where the model is supposed to emit canonical JSON.
-//!   Structured — parse both as JSON, compare fields. Tolerates whitespace +
+//!   Structured - parse both as JSON, compare fields. Tolerates whitespace +
 //!                key ordering. Used for tool-call extraction.
-//!   Embedding  — embedding-cosine distance under a threshold. (V0.1.)
-//!   Judge      — LLM-as-judge call. Most expensive. (V0.1.)
+//!   Embedding  - embedding-cosine distance under a threshold. (V0.1.)
+//!   Judge      - LLM-as-judge call. Most expensive. (V0.1.)
 //!
 //! V0 ships Bytes + Structured. Embedding + Judge land with the f3dx-cache
 //! integration once the Python adapter is wired.

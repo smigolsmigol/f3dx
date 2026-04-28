@@ -92,13 +92,13 @@ f3dx-cache/
 
 `f3dx-cache` is a TEST-MODE primitive. Production traffic does not point at it. The headline win is `$0 + 2sec` CI runs, not `$0 + 2sec` for end users.
 
-`f3dx-cache` is not a semantic cache. [GPTCache](https://github.com/zilliztech/GPTCache) does embedding-similarity matching for production cache hits — wrong abstraction for testing, where false positives mask regressions.
+`f3dx-cache` is not a semantic cache. [GPTCache](https://github.com/zilliztech/GPTCache) does embedding-similarity matching for production cache hits - wrong abstraction for testing, where false positives mask regressions.
 
 `f3dx-cache` is not tied to f3dx. Any LLM SDK that emits JSON-shaped requests works (openai, anthropic, instructor, litellm, langchain, ai-sdk).
 
 ## Sibling project
 
-[`f3dx`](https://github.com/smigolsmigol/f3dx) — `pip install f3dx`. Rust runtime your Python imports. Drop-in for openai + anthropic SDKs. The trace sink that `f3dx-cache` and `f3dx-replay` consume is `f3dx_trace::emit_trace_row` from this package.
+[`f3dx`](https://github.com/smigolsmigol/f3dx) - `pip install f3dx`. Rust runtime your Python imports. Drop-in for openai + anthropic SDKs. The trace sink that `f3dx-cache` and `f3dx-replay` consume is `f3dx_trace::emit_trace_row` from this package.
 
 ## License
 
