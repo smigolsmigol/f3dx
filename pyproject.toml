@@ -42,6 +42,13 @@ vigil = [
     # f3dx ships here is dependency-free at runtime - VIGIL doesn't have
     # to be importable. Keep this extra as a documentation pointer.
 ]
+bench = [
+    # f3dx.bench - opt-in telemetry to f3dx-bench dashboard. Pure stdlib;
+    # no runtime deps. Extra exists so users have a discoverable surface:
+    #   pip install f3dx[bench]
+    #   F3DX_BENCH_OPTIN=1 python my_agent.py
+    # See docs at https://github.com/smigolsmigol/f3dx-bench
+]
 anthropic-compat = [
     "anthropic>=0.40",
 ]
