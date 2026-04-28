@@ -72,6 +72,7 @@ def run_case(label: str, port: int, mode: str, schema, expect_event_type: str) -
         )
     finally:
         srv.shutdown()
+        srv.server_close()
     print()
 
 

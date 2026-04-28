@@ -73,6 +73,7 @@ def main() -> None:
         print("async content:", msg2.content)
     finally:
         server.shutdown()
+        server.server_close()
 
 
 if __name__ == "__main__":

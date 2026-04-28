@@ -64,6 +64,7 @@ def run_case(label: str, port: int, mode: str, expect_event_type: str, expect_ki
         assert validation_count == 1, f"expected 1 validation event, got {validation_count}"
     finally:
         srv.shutdown()
+        srv.server_close()
     print()
 
 

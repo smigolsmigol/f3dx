@@ -111,6 +111,7 @@ def main() -> None:
         print("stream content joined:", joined)
     finally:
         server.shutdown()
+        server.server_close()
 
 
 if __name__ == "__main__":

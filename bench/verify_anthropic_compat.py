@@ -82,6 +82,7 @@ async def run() -> None:
         print("\npydantic_ai agent.run output:", result.output)
     finally:
         server.shutdown()
+        server.server_close()
 
 
 if __name__ == "__main__":

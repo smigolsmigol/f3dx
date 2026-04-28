@@ -52,6 +52,7 @@ def main() -> None:
         print("  -> validated_output emitted with parsed dict\n")
     finally:
         srv.shutdown()
+        srv.server_close()
 
     # ---- negative path ----
     print("== mode=bad (truncated JSON streamed) ==")
@@ -80,6 +81,7 @@ def main() -> None:
         print("  -> validation_error emitted with raw payload + parser msg\n")
     finally:
         srv.shutdown()
+        srv.server_close()
 
     print("OK — Phase E V0 verified (validate_json=True works on both paths)")
 

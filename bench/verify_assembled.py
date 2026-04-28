@@ -89,6 +89,7 @@ def main() -> None:
         print(f"   assembled:  {len(events)} events, agx hands user parsed args dict ready to dispatch")
     finally:
         srv.shutdown()
+        srv.server_close()
 
 
 if __name__ == "__main__":

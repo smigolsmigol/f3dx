@@ -74,6 +74,7 @@ async def run() -> None:
         assert cap.model_requests == 1, f"expected 1 model request, got {cap.model_requests}"
     finally:
         server.shutdown()
+        server.server_close()
 
 
 if __name__ == "__main__":
