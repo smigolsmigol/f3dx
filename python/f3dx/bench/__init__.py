@@ -371,6 +371,11 @@ def _worker_loop() -> None:
             continue
         try:
             url = _state["ingest_url"].rstrip("/") + "/v1/beacon"
+            # Reject anything that isn't http(s); urllib otherwise honors
+            # file://, ftp://, gopher://, etc. The ingest URL is config-
+            # supplied so this is defense in depth, not perimeter validation.
+            if not (url.startswith("http://") or url.startswith("https://")):
+                continue
             if len(batch) == 1:
                 payload = json.dumps(batch[0]).encode("utf-8")
                 content_type = "application/json"
@@ -388,7 +393,7 @@ def _worker_loop() -> None:
                 },
                 method="POST",
             )
-            urllib.request.urlopen(req, timeout=10).read()
+            urllib.request.urlopen(req, timeout=10).read()  # nosem: dynamic-urllib-use-detected
         except Exception:
             # Telemetry must never break user code. Drop the batch.
             pass
