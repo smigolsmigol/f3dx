@@ -63,74 +63,74 @@ jobs:
       - name: Smoke import (compat shim)
         run: python -c "from f3dx.compat import OpenAI; import openai; print('OpenAI subclass:', issubclass(OpenAI, openai.OpenAI))"
 
-      - name: Bench — concurrent tool dispatch
+      - name: Bench - concurrent tool dispatch
         run: python bench/bench_concurrent.py
 
-      - name: Verify — tool-call reassembly
+      - name: Verify - tool-call reassembly
         run: python bench/verify_assembled.py
 
-      - name: Verify — AgentRuntime OTel spans
+      - name: Verify - AgentRuntime OTel spans
         run: python bench/verify_otel.py
 
-      - name: Verify — HTTP-level OTel spans
+      - name: Verify - HTTP-level OTel spans
         run: python bench/verify_otel_http.py
 
-      - name: Bench — OpenAI streaming vs openai SDK
+      - name: Bench - OpenAI streaming vs openai SDK
         run: python bench/bench_streaming.py
 
-      - name: Bench — Anthropic streaming vs anthropic SDK
+      - name: Bench - Anthropic streaming vs anthropic SDK
         run: python bench/bench_anthropic_streaming.py
 
-      - name: Verify — validate_json on assembled stream
+      - name: Verify - validate_json on assembled stream
         run: python bench/verify_validated.py
 
-      - name: Verify — panic hook + concurrent dispatch safety
+      - name: Verify - panic hook + concurrent dispatch safety
         run: python bench/verify_panic_hook.py
 
-      - name: Verify — openai-compat subclass shim
+      - name: Verify - openai-compat subclass shim
         run: python bench/verify_compat.py
 
-      - name: Verify — f3dx[pydantic-ai] integration end-to-end
+      - name: Verify - f3dx[pydantic-ai] integration end-to-end
         run: python bench/verify_pydantic_ai.py
 
-      - name: Verify — f3dx[langchain] integration end-to-end
+      - name: Verify - f3dx[langchain] integration end-to-end
         run: python bench/verify_langchain.py
 
-      - name: Verify — capture_messages opt-in trace enrichment
+      - name: Verify - capture_messages opt-in trace enrichment
         run: python bench/verify_capture_messages.py
 
-      - name: Verify — AsyncAnthropic + pydantic-ai anthropic_model
+      - name: Verify - AsyncAnthropic + pydantic-ai anthropic_model
         run: python bench/verify_anthropic_compat.py
 
-      - name: Verify — token counts in JSONL trace rows
+      - name: Verify - token counts in JSONL trace rows
         run: python bench/verify_token_counts.py
 
-      - name: Verify — schema-aware streaming validation (Phase E V0.2)
+      - name: Verify - schema-aware streaming validation (Phase E V0.2)
         run: python bench/verify_schema_validation.py
 
-      - name: Verify — incremental fail-fast on JSON prefix (Phase E V0.2.1)
+      - name: Verify - incremental fail-fast on JSON prefix (Phase E V0.2.1)
         run: python bench/verify_validate_prefix.py
 
       - name: Install pyarrow for analytics verify
         run: pip install "pyarrow>=18.0"
 
-      - name: Verify — JSONL traces -> parquet (Phase G V0.1)
+      - name: Verify - JSONL traces -> parquet (Phase G V0.1)
         run: python bench/verify_parquet.py
 
-      - name: Verify — live parquet sink (Phase G V0.2)
+      - name: Verify - live parquet sink (Phase G V0.2)
         run: python bench/verify_parquet_live.py
 
-      - name: Verify — VIGIL events.jsonl bridge (Cruz composition)
+      - name: Verify - VIGIL events.jsonl bridge (Cruz composition)
         run: python bench/verify_vigil.py
 
-      - name: Verify — MCP stdio client (npx server-everything)
+      - name: Verify - MCP stdio client (npx server-everything)
         run: python bench/verify_mcp.py
 
       - name: Install mcp Python package for sampling verify
         run: pip install "mcp>=1.10"
 
-      - name: Verify — MCP sampling-callback bridge (V0.2)
+      - name: Verify - MCP sampling-callback bridge (V0.2)
         run: python bench/verify_mcp_sampling.py
 
-      - name: Verify — MCP server-side support (f3dx.MCPServer)
+      - name: Verify - MCP server-side support (f3dx.MCPServer)
         run: python bench/verify_mcp_server.py

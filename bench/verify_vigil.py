@@ -111,7 +111,7 @@ def main() -> None:
     case_failed_run_status()
     case_full_file_conversion()
     print()
-    print("OK — f3dx[vigil] bridge verified")
+    print("OK - f3dx[vigil] bridge verified")
     print("composes: f3dx (transport + JSONL trace) -> VIGIL/Robin B (reflective supervisor)")
 
 

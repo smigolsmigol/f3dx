@@ -2,8 +2,8 @@
 
 The user provides:
     - a prompt
-    - a contract (atlas_rtc.contracts.* — JSONSchemaContract, ToolCallContract,
-      ExtractionContract — or list of required keys for shorthand)
+    - a contract (atlas_rtc.contracts.* - JSONSchemaContract, ToolCallContract,
+      ExtractionContract - or list of required keys for shorthand)
     - an adapter (MockAdapter, HFAdapter, VLLMAdapter from atlas_rtc.adapters)
 
 We run the controller, emit an OTel span carrying gen_ai.system="atlas-rtc"
@@ -39,7 +39,7 @@ class ControlledResult:
 
     @property
     def succeeded_first_pass(self) -> bool:
-        """True iff the contract validated AND no interventions fired —
+        """True iff the contract validated AND no interventions fired -
         i.e. the model produced a conforming output without rollback or
         masking. The first-attempt-validity number ATLAS-RTC reports."""
         return self.valid and self.interventions == 0
@@ -57,7 +57,7 @@ def controlled_completion(
 
     `contract` accepts either an `atlas_rtc.contracts.*` instance or a plain
     list of required keys (sugar for `JSONSchemaContract(required_keys=...)`).
-    `adapter` is an ATLAS-RTC adapter — MockAdapter for tests, HFAdapter
+    `adapter` is an ATLAS-RTC adapter - MockAdapter for tests, HFAdapter
     for HuggingFace models, VLLMAdapter for local vLLM serving.
 
     Emits a `f3dx.atlas_rtc.run` OTel span with attributes:
@@ -102,7 +102,7 @@ def _emit_span_start(contract_name: str) -> dict[str, Any]:
         from f3dx import _f3dx  # type: ignore[attr-defined]
         # f3dx-trace exposes tracer() to f3dx-rt; we don't currently expose
         # a Python-side tracer entry, so this stays a stub for V0.
-        # The ATLAS-RTC EventLogger captures interventions in detail — we
+        # The ATLAS-RTC EventLogger captures interventions in detail - we
         # surface aggregate counts on the f3dx side via the return value.
         return {"contract_name": contract_name}
     except Exception:

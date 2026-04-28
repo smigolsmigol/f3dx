@@ -17,7 +17,7 @@ import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 GOOD_JSON = '{"intent":"search","query":"forensic intel","filters":{"resident_id":"0000862794","k":5}}'
-BAD_JSON = '{"intent":"search","query":"forensic intel",'  # truncated — invalid
+BAD_JSON = '{"intent":"search","query":"forensic intel",'  # truncated - invalid
 PROSE_JSON = 'Sure, here is the JSON you requested:\n\n{"intent":"search","query":"x"}'
 
 

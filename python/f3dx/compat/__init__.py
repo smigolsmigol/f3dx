@@ -1,4 +1,4 @@
-"""f3dx.compat — opt-in subclass shims for upstream SDK isinstance compatibility.
+"""f3dx.compat - opt-in subclass shims for upstream SDK isinstance compatibility.
 
 Importing requires the matching extra:
     pip install f3dx[openai-compat]

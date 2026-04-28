@@ -1,4 +1,4 @@
-//! f3dx-py — PyO3 bridge.
+//! f3dx-py - PyO3 bridge.
 //!
 //! Single Python module `_f3dx` that re-exports the registered
 //! pyclasses + pyfunctions from f3dx-rt, f3dx-http, f3dx-trace.

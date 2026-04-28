@@ -38,7 +38,7 @@ for ev in client.chat_completions_create_stream_assembled(req, validate_json=Tru
     elif ev["type"] == "validation_error":
         log.warning("model emitted invalid JSON: %s", ev["error"])
 
-# Logfire-compatible OTel spans by default — gen_ai.* semconv
+# Logfire-compatible OTel spans by default - gen_ai.* semconv
 f3dx.configure_otel(
     endpoint="https://logfire-api.pydantic.dev/v1/traces",
     headers={"Authorization": f"Bearer {LOGFIRE_TOKEN}"},
@@ -137,7 +137,7 @@ f3dx/
 
 ## What this is not
 
-f3dx is a Python-from-Rust runtime — a Rust core that ships as a Python wheel via PyO3. If you're building a pure Rust application and want an agent framework in your binary, look at [AutoAgents](https://github.com/saivishwak/autoagents) (Rust agent framework with role-based multi-agent), [rig](https://github.com/0xPlaygrounds/rig) (provider abstraction + RAG primitives in Rust), or [mistral.rs](https://github.com/EricLBuehler/mistral.rs) (local inference engine). Different audience, different scope.
+f3dx is a Python-from-Rust runtime - a Rust core that ships as a Python wheel via PyO3. If you're building a pure Rust application and want an agent framework in your binary, look at [AutoAgents](https://github.com/saivishwak/autoagents) (Rust agent framework with role-based multi-agent), [rig](https://github.com/0xPlaygrounds/rig) (provider abstraction + RAG primitives in Rust), or [mistral.rs](https://github.com/EricLBuehler/mistral.rs) (local inference engine). Different audience, different scope.
 
 f3dx is not an inference engine. Use vLLM, TGI, mistral.rs, llama.cpp, or any OpenAI-compatible endpoint underneath; f3dx talks to them.
 
@@ -145,7 +145,7 @@ f3dx is not a multi-agent orchestration framework. It is the runtime layer below
 
 ## Sibling project
 
-[`tracewright`](https://github.com/smigolsmigol/tracewright) — `pip install tracewright`. Trace-replay adapter for [`pydantic-evals`](https://ai.pydantic.dev/evals/). Read an f3dx or pydantic-ai logfire JSONL trace, get a `pydantic_evals.Dataset` you can run any pydantic-evals evaluator against (`LLMJudge`, `EqualsExpected`, custom embedding-cosine). Closes the loop from "we have observability" to "we have regression tests".
+[`tracewright`](https://github.com/smigolsmigol/tracewright) - `pip install tracewright`. Trace-replay adapter for [`pydantic-evals`](https://ai.pydantic.dev/evals/). Read an f3dx or pydantic-ai logfire JSONL trace, get a `pydantic_evals.Dataset` you can run any pydantic-evals evaluator against (`LLMJudge`, `EqualsExpected`, custom embedding-cosine). Closes the loop from "we have observability" to "we have regression tests".
 
 ## Composition with ATLAS-RTC (Cruz)
 
@@ -162,7 +162,7 @@ result = controlled_completion(
 # result.text='{"name":"alice","age":30}', result.valid=True, result.interventions=N
 ```
 
-[ATLAS-RTC](https://github.com/cruz209/ATLAS-RTC) (Christopher Cruz, MIT) is a runtime control layer that enforces structured outputs at decode time — drift detection + logit masking + rollback during generation. f3dx's runtime sits at a different layer (transport + observability + agent loop). They compose: ATLAS-RTC owns the per-token control loop, f3dx owns the request transport and trace emission. Most useful with local vLLM / HuggingFace where decode-time control is reachable; cloud APIs (OpenAI, Anthropic) don't expose that surface.
+[ATLAS-RTC](https://github.com/cruz209/ATLAS-RTC) (Christopher Cruz, MIT) is a runtime control layer that enforces structured outputs at decode time - drift detection + logit masking + rollback during generation. f3dx's runtime sits at a different layer (transport + observability + agent loop). They compose: ATLAS-RTC owns the per-token control loop, f3dx owns the request transport and trace emission. Most useful with local vLLM / HuggingFace where decode-time control is reachable; cloud APIs (OpenAI, Anthropic) don't expose that surface.
 
 ```python
 # pip install f3dx[vigil]
@@ -192,15 +192,15 @@ result = client.call_tool("get-sum", json.dumps({"a": 7, "b": 35}))
 # 'The sum of 7 and 35 is 42.'
 ```
 
-`f3dx-mcp` is a sibling cargo crate; the rmcp Rust SDK drives the JSON-RPC handshake. Stdio + streamable-HTTP transports + sampling-callback bridge ship today; SSE-only transport (rare in practice — streamable-HTTP subsumes it for MCP) skipped.
+`f3dx-mcp` is a sibling cargo crate; the rmcp Rust SDK drives the JSON-RPC handshake. Stdio + streamable-HTTP transports + sampling-callback bridge ship today; SSE-only transport (rare in practice - streamable-HTTP subsumes it for MCP) skipped.
 
-**Sampling callback** — the MCP server can ask the connected client for a model completion via `sampling/createMessage`. Pass a Python callback to `MCPClient.stdio` / `streamable_http` and it fires on every such request:
+**Sampling callback** - the MCP server can ask the connected client for a model completion via `sampling/createMessage`. Pass a Python callback to `MCPClient.stdio` / `streamable_http` and it fires on every such request:
 
 ```python
 def my_sampling(messages_json: str, system_prompt: str) -> str:
     # messages_json is the serialized rmcp message list; reach for whatever
-    # field the request exposes. Run any model — f3dx.OpenAI, f3dx.Anthropic,
-    # pydantic-ai Agent, ATLAS-RTC controlled_completion — and return text.
+    # field the request exposes. Run any model - f3dx.OpenAI, f3dx.Anthropic,
+    # pydantic-ai Agent, ATLAS-RTC controlled_completion - and return text.
     return run_my_model(messages_json, system_prompt)
 
 client = f3dx.MCPClient.stdio(
@@ -211,7 +211,7 @@ client = f3dx.MCPClient.stdio(
 
 Without a callback, sampling requests get the standard "method not supported" error.
 
-**Server-side** — expose Python callables AS MCP tools that other MCP clients (Claude Desktop, IDE plugins, other f3dx-built clients) can call:
+**Server-side** - expose Python callables AS MCP tools that other MCP clients (Claude Desktop, IDE plugins, other f3dx-built clients) can call:
 
 ```python
 import f3dx, json
@@ -239,7 +239,7 @@ f3dx now ships the full bidirectional MCP surface: client (stdio + streamable-HT
 from f3dx.compat import OpenAI, AsyncOpenAI    # subclass openai.OpenAI / openai.AsyncOpenAI
 import openai
 client = OpenAI(api_key=...)
-isinstance(client, openai.OpenAI)               # True — passes isinstance checks in
+isinstance(client, openai.OpenAI)               # True - passes isinstance checks in
                                                 # instructor, litellm, smolagents, langchain
 out = client.chat.completions.create(...)       # routes through Rust, returns
                                                 # openai.types.chat.ChatCompletion
@@ -268,9 +268,9 @@ msg = llm.invoke('hi')                          # sync + ainvoke both routed via
 - Gemini adapter (Phase C.2)
 - MCP V0.1: SSE + streamable-HTTP transports + sampling callback bridge (V0 ships stdio only; covers Claude Desktop + every npm-based server + python-based servers via `python -m`)
 - Parent-child trace context propagation between AgentRuntime span and HTTP child spans (needs Python-side context bridge)
-- Phase E V0.2.2: full streaming JSON parser (V0.2.1 ships fail-fast on invalid JSON prefix — catches the dominant LLM-prefaces-with-prose case in 5-10 tokens; bracket-balance + per-token schema FSM are the next steps)
+- Phase E V0.2.2: full streaming JSON parser (V0.2.1 ships fail-fast on invalid JSON prefix - catches the dominant LLM-prefaces-with-prose case in 5-10 tokens; bracket-balance + per-token schema FSM are the next steps)
 - Phase E V0.2.3: per-token JSON Schema state machine (V0.2 ships terminal-time `output_schema=` via `jsonschema-rs`; full per-token schema FSM lands once V0.2.2 is in)
-- Phase G V0.3: Rust-side parquet sink (V0.2 ships `AppendingParquetWriter` + `tail_jsonl_to_parquet` Python-side via pyarrow under `f3dx[arrow]`; a Rust-native sink would skip the JSONL middlefile but adds ~30MB to the wheel — deferred unless requested)
+- Phase G V0.3: Rust-side parquet sink (V0.2 ships `AppendingParquetWriter` + `tail_jsonl_to_parquet` Python-side via pyarrow under `f3dx[arrow]`; a Rust-native sink would skip the JSONL middlefile but adds ~30MB to the wheel - deferred unless requested)
 - `langchain-f3dx` standalone PyPI package per LangChain partner-package convention (today integrated via the `f3dx[langchain]` extra; standalone-package split happens before LangChain partner-registry submission)
 
 ## License

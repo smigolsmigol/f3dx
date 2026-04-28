@@ -41,7 +41,7 @@ def main() -> None:
     print("system_prompt:", enriched["system_prompt"])
     print("output:", enriched["output"])
     os.remove(path)
-    print("\nOK — capture_messages opt-in verified")
+    print("\nOK - capture_messages opt-in verified")
 
 
 if __name__ == "__main__":

@@ -83,7 +83,7 @@ def main() -> None:
         srv.shutdown()
         srv.server_close()
 
-    print("OK — Phase E V0 verified (validate_json=True works on both paths)")
+    print("OK - Phase E V0 verified (validate_json=True works on both paths)")
 
 
 if __name__ == "__main__":

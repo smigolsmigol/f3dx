@@ -1,10 +1,10 @@
 //! f3dx-http SSE streaming.
 //!
 //! Three Python-facing streaming classes:
-//!   PyChatCompletionStream         — OpenAI raw chunks (Phase B)
-//!   PyAssembledStream              — OpenAI assembled events (Phase D):
+//!   PyChatCompletionStream         - OpenAI raw chunks (Phase B)
+//!   PyAssembledStream              - OpenAI assembled events (Phase D):
 //!                                    delta_content / tool_call / done
-//!   PyAnthropicStream              — Anthropic raw events (Phase C)
+//!   PyAnthropicStream              - Anthropic raw events (Phase C)
 //!
 //! All three share the same architecture: a tokio task pumps SSE events
 //! from the model endpoint into a std::sync::mpsc channel. The Python
@@ -248,7 +248,7 @@ async fn pump_openai_assembled(
                             content_buf.push_str(content);
                             // Phase E V0.2.1 early-fail: once we see the
                             // first non-whitespace character of accumulated
-                            // content, it must be { or [ — otherwise the
+                            // content, it must be { or [ - otherwise the
                             // model is prefacing with prose and the rest
                             // of the stream will fail terminal validation.
                             // Save the user the wasted tokens by emitting

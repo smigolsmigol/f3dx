@@ -1,4 +1,4 @@
-"""f3dx.vigil — bridge between f3dx JSONL traces and VIGIL/Robin B's
+"""f3dx.vigil - bridge between f3dx JSONL traces and VIGIL/Robin B's
 event log shape.
 
 VIGIL ([cruz209/V.I.G.I.L](https://github.com/cruz209/V.I.G.I.L)) is

@@ -1,4 +1,4 @@
-//! agx-http — Rust LLM HTTP client.
+//! agx-http - Rust LLM HTTP client.
 //!
 //! Phase A (shipped): sync chat completions via reqwest.
 //! Phase B (shipped): async reqwest + tokio + SSE streaming for OpenAI.

@@ -1,4 +1,4 @@
-"""F3dxCapability — observability hook tagging spans + counting tool dispatches.
+"""F3dxCapability - observability hook tagging spans + counting tool dispatches.
 
 Sits on the documented `wrap_model_request` and `wrap_tool_execute` hooks,
 adds gen_ai.* / f3dx.* attributes via OpenTelemetry, and exposes per-run

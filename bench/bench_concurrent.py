@@ -7,7 +7,7 @@ release the GIL during I/O. Python pydantic-ai's asyncio loop dispatches
 sequentially within a turn (one event loop, one tool at a time unless
 explicitly gathered).
 
-Tool: time.sleep(0.020) — simulates a 20ms network round-trip per tool.
+Tool: time.sleep(0.020) - simulates a 20ms network round-trip per tool.
 Real tools (HTTP via httpx/requests/urllib) release the GIL the same way.
 
 Expected: with 5 tools per turn, sequential = ~100ms/turn; concurrent
@@ -84,7 +84,7 @@ def py_run_concurrent(
 
     Note: pydantic-ai itself does NOT do this by default. Production
     pydantic-ai dispatches sequentially within a single event loop.
-    This is the strongest possible Python competitor — and we're
+    This is the strongest possible Python competitor - and we're
     still expecting agx to win because it skips the asyncio overhead.
     """
     from concurrent.futures import ThreadPoolExecutor
@@ -151,7 +151,7 @@ def py_run_sequential(
     max_iterations: int = 20,
     max_tool_calls: int = 50,
 ) -> dict:
-    """Pure-Python sequential — what pydantic-ai effectively does today
+    """Pure-Python sequential - what pydantic-ai effectively does today
     when tool calls are dispatched one at a time within a single asyncio
     event loop iteration."""
     messages: list[dict] = []

@@ -78,7 +78,7 @@ def main() -> None:
             assert key in row, f"row {i} missing {key}: {row}"
         assert isinstance(row["tool_calls"], list)
 
-    print("\nOK — Phase G V0 verified")
+    print("\nOK - Phase G V0 verified")
     print("   pl.scan_ndjson(path) or duckdb.read_json(path) ready to use")
     os.remove(path)
 

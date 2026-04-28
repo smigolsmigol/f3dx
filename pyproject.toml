@@ -39,7 +39,7 @@ atlas-rtc = [
 ]
 vigil = [
     # VIGIL ships as a project scaffold (cruz209/V.I.G.I.L). The bridge
-    # f3dx ships here is dependency-free at runtime — VIGIL doesn't have
+    # f3dx ships here is dependency-free at runtime - VIGIL doesn't have
     # to be importable. Keep this extra as a documentation pointer.
 ]
 anthropic-compat = [

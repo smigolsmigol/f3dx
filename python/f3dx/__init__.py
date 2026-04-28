@@ -1,4 +1,4 @@
-"""f3dx — f3d1 Rust-core runtime for pydantic-ai.
+"""f3dx - f3d1 Rust-core runtime for pydantic-ai.
 
 Surfaces shipped:
   f3dx.AgentRuntime    -- agent loop with concurrent tool dispatch (5-10x on multi-tool turns)

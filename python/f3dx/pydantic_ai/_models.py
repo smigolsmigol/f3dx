@@ -3,7 +3,7 @@
 The integration leans on pydantic-ai's own provider injection: rather than
 fork OpenAIChatModel / AnthropicModel, we hand them a client whose
 chat.completions.create / messages.create routes through the f3dx Rust core.
-This keeps the f3dx integration on the supported extension surface — every
+This keeps the f3dx integration on the supported extension surface - every
 pydantic-ai feature (toolsets, capabilities, streaming, structured output)
 keeps working unchanged.
 """

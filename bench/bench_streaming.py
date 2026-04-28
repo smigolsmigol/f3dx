@@ -5,7 +5,7 @@ Both clients hit the same server. We measure full wall-clock per
 streamed completion (drain all chunks). Single-thread, repeat to
 get a stable median.
 
-Expected: agx faster — Rust SSE parser + reqwest connection pool
+Expected: agx faster - Rust SSE parser + reqwest connection pool
 vs Python SSE parsing + httpx pool. Magnitude TBD by chunk count
 (per-chunk parse cost dominates as N grows).
 """

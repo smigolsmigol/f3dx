@@ -84,7 +84,7 @@ def main() -> None:
         assert len(done_events) == 1
         assert done_events[0]["finish_reason"] == "tool_calls"
 
-        print("OK — Phase D verified")
+        print("OK - Phase D verified")
         print(f"   raw stream: {len(raw_chunks)} chunks, user must accumulate {n_arg_fragments} fragments + json.loads")
         print(f"   assembled:  {len(events)} events, agx hands user parsed args dict ready to dispatch")
     finally:

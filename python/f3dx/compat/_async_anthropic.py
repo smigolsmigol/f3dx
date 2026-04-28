@@ -84,7 +84,7 @@ class AsyncAnthropic(_anthropic.AsyncAnthropic):
         )
         self.messages.create = self._f3dx_create  # type: ignore[method-assign]
         self.messages.with_raw_response = _F3dxAsyncRawResponseProxy(self._f3dx_create)
-        # pydantic-ai's AnthropicModel calls client.beta.messages.create — same
+        # pydantic-ai's AnthropicModel calls client.beta.messages.create - same
         # wire format, but the SDK validates the dict into BetaMessage (with
         # BetaTextBlock / BetaToolUseBlock content items) rather than the
         # plain Message. Route both surfaces through f3dx; pick the right

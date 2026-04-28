@@ -14,7 +14,7 @@ maturin develop --release
 
 ## Running benches
 
-Every bench under `bench/` is reproducible and uses stdlib mock servers — no live API keys required.
+Every bench under `bench/` is reproducible and uses stdlib mock servers - no live API keys required.
 
 ```bash
 python bench/bench_concurrent.py            # AgentRuntime concurrent dispatch (5-10x)

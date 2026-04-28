@@ -60,7 +60,7 @@ def main() -> None:
         print(f"  [{marker}] prompt={r.case.prompt!r} baseline={r.case.baseline_output!r} candidate={r.candidate_output!r}")
 
     os.remove(path)
-    print("\nOK — f3dx -> tracewright dogfood loop verified end to end")
+    print("\nOK - f3dx -> tracewright dogfood loop verified end to end")
 
 
 if __name__ == "__main__":

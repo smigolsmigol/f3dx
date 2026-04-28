@@ -1,8 +1,8 @@
-//! f3dx-rt — agent runtime core.
+//! f3dx-rt - agent runtime core.
 //!
 //! Whole-loop in Rust + concurrent tool dispatch via Python::allow_threads.
 //! State lives in Rust for the duration of an agent run. Boundary crossings:
-//!   1. Tool function calls (Python tool callables — fanned out across OS
+//!   1. Tool function calls (Python tool callables - fanned out across OS
 //!      threads when the model returns multiple tool_calls per turn)
 //!   2. Model HTTP request (mocked here; real HTTP comes from f3dx-http)
 //!   3. Final result return

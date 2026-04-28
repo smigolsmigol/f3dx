@@ -146,7 +146,7 @@ impl PyOpenAIClient {
 
     /// Sync chat completion stream. Returns an iterator of chunk dicts.
     /// Each iteration releases the GIL while waiting for the next chunk
-    /// from the SSE stream — concurrent Python threads can make progress.
+    /// from the SSE stream - concurrent Python threads can make progress.
     fn chat_completions_create_stream<'py>(
         &self,
         py: Python<'py>,
@@ -186,7 +186,7 @@ impl PyOpenAIClient {
     ///    "arguments": {parsed dict}, "index": N}
     ///   {"type": "done", "finish_reason": "stop"}
     /// User code never has to accumulate arguments fragments or json.loads
-    /// the assembled string — f3dx does it Rust-side.
+    /// the assembled string - f3dx does it Rust-side.
     ///
     /// validate_json=True: accumulate delta.content fragments, attempt
     /// json.loads at terminal, emit one extra event before done:

@@ -49,7 +49,7 @@ def main() -> None:
         print(f"  raised: {e}")
         assert "unknown" in str(e).lower() or "not found" in str(e).lower()
 
-    print("\nOK — f3dx.MCPServer (full bidirectional MCP surface) verified end to end")
+    print("\nOK - f3dx.MCPServer (full bidirectional MCP surface) verified end to end")
 
 
 if __name__ == "__main__":

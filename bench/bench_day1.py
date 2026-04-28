@@ -1,8 +1,8 @@
 """Day-1 micro-bench: agx Rust path vs pure-Python equivalent.
 
 Measures the two operations the agent loop hits N times per run:
-  1. build_next_request — splice tool results into prior history
-  2. render_messages — flatten message list to model-input string
+  1. build_next_request - splice tool results into prior history
+  2. render_messages - flatten message list to model-input string
 
 If Rust beats Python by ≥5x on either operation, the architecture is
 sound and the 8-week build is greenlit. If not, the boundary cost

@@ -1,4 +1,4 @@
-//! f3dx-trace — OpenTelemetry span emission for f3dx.
+//! f3dx-trace - OpenTelemetry span emission for f3dx.
 //!
 //! Phase F: wire OTel + OTLP/HTTP+protobuf exporter so every f3dx run
 //! emits proper gen_ai.* semconv spans. Configurable via the Python
@@ -124,7 +124,7 @@ pub fn tracer() -> Option<&'static Tracer> {
 /// Configure a JSONL trace sink. Each AgentRuntime.run appends one row.
 /// Path is opened append-only on each emit; safe under concurrent runs.
 /// Set path=None to disable. capture_messages=True opts in to PII-sensitive
-/// fields (prompt, system_prompt, output, model) — required by downstream
+/// fields (prompt, system_prompt, output, model) - required by downstream
 /// replay tools like tracewright but off by default.
 #[pyfunction]
 #[pyo3(signature = (path = None, capture_messages = false))]

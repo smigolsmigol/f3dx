@@ -1,4 +1,4 @@
-"""f3dx.langchain — langchain-openai integration package.
+"""f3dx.langchain - langchain-openai integration package.
 
 ChatOpenAI subclass routes through the f3dx Rust core via the documented
 root_client / root_async_client injection points. Drop-in for

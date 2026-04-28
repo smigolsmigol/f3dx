@@ -1,9 +1,9 @@
-//! f3dx-mcp — Model Context Protocol client for the f3dx agent loop.
+//! f3dx-mcp - Model Context Protocol client for the f3dx agent loop.
 //!
 //! Phase Tier 6:
-//!   V0   — stdio transport (dominant; covers Claude Desktop + npm-based servers)
-//!   V0.1 — streamable-HTTP transport (remote MCP servers, Cloudflare Workers, hosted MCP)
-//!   V0.2 — sampling-callback bridge: MCP servers can ask the agent's model
+//!   V0   - stdio transport (dominant; covers Claude Desktop + npm-based servers)
+//!   V0.1 - streamable-HTTP transport (remote MCP servers, Cloudflare Workers, hosted MCP)
+//!   V0.2 - sampling-callback bridge: MCP servers can ask the agent's model
 //!          for completions via a Python callback that runs on every
 //!          create_message request.
 //!

@@ -1,4 +1,4 @@
-"""f3dx.pydantic_ai — integration package for pydantic-ai.
+"""f3dx.pydantic_ai - integration package for pydantic-ai.
 
 Drop-in factories that build pydantic-ai Models routed through the f3dx Rust
 core, plus an AbstractCapability that tags spans + counts dispatches.

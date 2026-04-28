@@ -137,7 +137,7 @@ def main() -> None:
     print(f"f3dx version: {f3dx.__version__}\n")
     case_appending_writer_direct()
     case_tail_jsonl()
-    print("\nOK — Phase G V0.2 live parquet sink verified")
+    print("\nOK - Phase G V0.2 live parquet sink verified")
 
 
 if __name__ == "__main__":

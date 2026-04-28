@@ -76,7 +76,7 @@ def main() -> None:
     case_no_callback()
     case_with_callback()
     print()
-    print("OK — MCP V0.2 sampling-callback bridge verified end to end")
+    print("OK - MCP V0.2 sampling-callback bridge verified end to end")
 
 
 if __name__ == "__main__":

@@ -63,7 +63,7 @@ def main() -> None:
     except ImportError:
         os.remove(path)
         print("\n(tracewright not installed; cost-rollup half skipped)")
-        print("OK — f3dx token-counts in trace row verified")
+        print("OK - f3dx token-counts in trace row verified")
         return
 
     replay_rows = list(filter_replayable(parse_jsonl(path)))
@@ -89,7 +89,7 @@ def main() -> None:
     print(f"  detail: {failures[0].detail}")
 
     os.remove(path)
-    print("\nOK — f3dx token-counts -> tracewright cost-rollup verified end to end")
+    print("\nOK - f3dx token-counts -> tracewright cost-rollup verified end to end")
 
 
 if __name__ == "__main__":

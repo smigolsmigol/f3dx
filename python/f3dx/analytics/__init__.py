@@ -1,4 +1,4 @@
-"""f3dx.analytics — convert JSONL trace sinks into Arrow / parquet.
+"""f3dx.analytics - convert JSONL trace sinks into Arrow / parquet.
 
 Phase G V0.1: pyarrow-side conversion. The f3dx-rt sink writes JSONL
 append-only because rolling-parquet over a long-lived process needs
@@ -17,7 +17,7 @@ Typical use:
     # then: pl.scan_parquet("traces.parquet") or duckdb.read_parquet(...)
 
 V0.2 will add a live parquet sink (rolling files, configurable row-group
-size). V0.1 is the converter — covers every f3dx user today since the
+size). V0.1 is the converter - covers every f3dx user today since the
 JSONL sink is the only one shipping.
 """
 

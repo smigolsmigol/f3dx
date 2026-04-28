@@ -1,14 +1,14 @@
 """Phase E V0.2.1 verify: validate_json=True now fails fast when the
 model prefaces with prose before emitting JSON. The validation_error
 event fires the moment the first non-whitespace character of accumulated
-content is not `{` or `[` — before the rest of the stream arrives,
+content is not `{` or `[` - before the rest of the stream arrives,
 saving the user wasted tokens.
 
 Three scenarios via the json mock server:
-  good  — emits valid JSON cleanly. Existing terminal validated_output fires.
-  prose — emits "Sure, here is the JSON: {..." prefix. NEW V0.2.1 path:
+  good  - emits valid JSON cleanly. Existing terminal validated_output fires.
+  prose - emits "Sure, here is the JSON: {..." prefix. NEW V0.2.1 path:
           validation_error kind=json_prefix fires early.
-  bad   — emits truncated JSON ("{...,"). Terminal validation_error
+  bad   - emits truncated JSON ("{...,"). Terminal validation_error
           kind=json_parse fires (prefix check passes since first char IS `{`).
 """
 
@@ -76,7 +76,7 @@ def main() -> None:
              PORT_PROSE, "prose", "validation_error", "json_prefix")
     run_case("truncated-JSON payload -> validation_error kind=json_parse (terminal; prefix is {)",
              PORT_BAD, "bad", "validation_error", "json_parse")
-    print("OK — Phase E V0.2.1 incremental fail-fast on invalid JSON prefix verified")
+    print("OK - Phase E V0.2.1 incremental fail-fast on invalid JSON prefix verified")
 
 
 if __name__ == "__main__":

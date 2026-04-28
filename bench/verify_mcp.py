@@ -37,7 +37,7 @@ def main() -> None:
     print(f"get-sum result: {out!r}")
     assert "42" in out, f"expected sum 42, got {out!r}"
 
-    print("\nOK — MCP stdio client verified end to end")
+    print("\nOK - MCP stdio client verified end to end")
 
 
 if __name__ == "__main__":

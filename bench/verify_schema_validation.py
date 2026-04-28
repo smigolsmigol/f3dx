@@ -84,7 +84,7 @@ def main() -> None:
              PORT_GOOD + 10, "good", TIGHT_SCHEMA, "validation_error")
     run_case("malformed payload + any schema -> validation_error (kind=json_parse)",
              PORT_BAD, "bad", SCHEMA, "validation_error")
-    print("OK — Phase E V0.2 schema-aware validation verified")
+    print("OK - Phase E V0.2 schema-aware validation verified")
 
 
 if __name__ == "__main__":

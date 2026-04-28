@@ -98,7 +98,7 @@ def main() -> None:
     print()
     case_unrecoverable_failure()
     print()
-    print("OK — f3dx[atlas-rtc] composition verified")
+    print("OK - f3dx[atlas-rtc] composition verified")
     print("composes: f3dx (transport + observability) over Cruz's ATLAS-RTC (decode-time control)")
 
 

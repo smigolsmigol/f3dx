@@ -72,7 +72,7 @@ def main() -> None:
 
     os.remove(jsonl_path)
     os.remove(parquet_path)
-    print("\nOK — Phase G V0.1 jsonl_to_parquet verified")
+    print("\nOK - Phase G V0.1 jsonl_to_parquet verified")
 
 
 if __name__ == "__main__":

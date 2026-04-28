@@ -4,7 +4,7 @@ We bind the schema to the f3dx-rt JSONL trace shape so the resulting
 parquet file is queryable without inferring types row-by-row. Fields
 that haven't been written by the running f3dx version (e.g. token
 counts on traces older than v0.0.8, prompt/output without
-capture_messages=True) become nulls in the column — pyarrow doesn't
+capture_messages=True) become nulls in the column - pyarrow doesn't
 mind, polars/duckdb scan them as null.
 """
 
@@ -65,7 +65,7 @@ def jsonl_to_parquet(
         jsonl_path: source JSONL trace (typically the path passed to
             `f3dx.configure_traces`).
         parquet_path: destination parquet file. Created or overwritten.
-        compression: parquet codec — snappy (default), zstd, gzip, brotli, lz4, none.
+        compression: parquet codec - snappy (default), zstd, gzip, brotli, lz4, none.
         row_group_size: rows per parquet row group. Smaller = better
             predicate pushdown granularity, larger = better compression.
 
@@ -130,7 +130,7 @@ class AppendingParquetWriter:
     Wraps `pyarrow.parquet.ParquetWriter` with a batched append API. Rows
     buffer in memory until `batch_size` is hit, then flush as one parquet
     row group. `close()` (or context-manager exit) flushes the partial
-    final group + closes the file. Safe to interrupt mid-write — the
+    final group + closes the file. Safe to interrupt mid-write - the
     parquet file remains readable up to the last flushed row group.
 
     Usage:

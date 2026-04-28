@@ -3,7 +3,7 @@ MCP server, lists tools, calls one. Smoke test against
 `@modelcontextprotocol/server-everything streamableHttp` running on
 localhost:3001 (the package's default port for that mode).
 
-Skipped on CI by default — the streamable-http test path needs a long-lived
+Skipped on CI by default - the streamable-http test path needs a long-lived
 HTTP server which the per-job sandbox doesn't suit. Re-enable once we ship
 an in-process Rust mock MCP HTTP server."""
 
@@ -32,7 +32,7 @@ def main() -> int:
     # Pre-flight: only run when the server is actually reachable. TCP-level
     # probe so any HTTP response (including 400 / 404) counts as alive.
     if not _port_open("127.0.0.1", 3001):
-        print("no MCP server reachable at 127.0.0.1:3001 — skip", file=sys.stderr)
+        print("no MCP server reachable at 127.0.0.1:3001 - skip", file=sys.stderr)
         print("start with: npx -y @modelcontextprotocol/server-everything streamableHttp",
               file=sys.stderr)
         return 0
@@ -58,7 +58,7 @@ def main() -> int:
     print(f"get-sum result: {out!r}")
     assert "42" in out
 
-    print("\nOK — MCP streamable-http client verified end to end")
+    print("\nOK - MCP streamable-http client verified end to end")
     return 0
 
 
