@@ -143,9 +143,15 @@ f3dx is not an inference engine. Use vLLM, TGI, mistral.rs, llama.cpp, or any Op
 
 f3dx is not a multi-agent orchestration framework. It is the runtime layer below frameworks like pydantic-ai, LangChain, LlamaIndex, CrewAI, AutoGen.
 
-## Sibling project
+## Sibling projects
 
-[`tracewright`](https://github.com/smigolsmigol/tracewright) - `pip install tracewright`. Trace-replay adapter for [`pydantic-evals`](https://ai.pydantic.dev/evals/). Read an f3dx or pydantic-ai logfire JSONL trace, get a `pydantic_evals.Dataset` you can run any pydantic-evals evaluator against (`LLMJudge`, `EqualsExpected`, custom embedding-cosine). Closes the loop from "we have observability" to "we have regression tests".
+The f3d1 ecosystem on top of f3dx:
+
+- [`tracewright`](https://github.com/smigolsmigol/tracewright) - `pip install tracewright`. Trace-replay adapter for [`pydantic-evals`](https://ai.pydantic.dev/evals/). Read an f3dx or pydantic-ai logfire JSONL trace, get a `pydantic_evals.Dataset` you can run any pydantic-evals evaluator against. Closes the loop from "we have observability" to "we have regression tests".
+- [`f3dx-cache`](https://github.com/smigolsmigol/f3dx-cache) - `pip install f3dx-cache`. Content-addressable LLM response cache + replay layer. redb + RFC 8785 JCS + BLAKE3. Identical requests fingerprint identically; cached response returns at sub-ms. CI runs the eval suite against captured prod traces at zero token cost. pytest11 plugin: `@pytest.mark.f3dx_cache`.
+- [`pydantic-cal`](https://github.com/smigolsmigol/pydantic-cal) - `pip install pydantic-cal`. Calibration metrics for pydantic-evals: ECE, MCE, ACE, Brier, reliability diagrams, Murphy 1973 decomposition, temperature/Platt/isotonic scaling, Fisher-Rao geometry kernel. The calibration layer the eval world is missing.
+- [`f3dx-router`](https://github.com/smigolsmigol/f3dx-router) - `pip install f3dx-router`. In-process Rust router for LLM providers. Hedged-parallel + 429/5xx hot-swap < 1ms. Composes with hosted gateways like [llmkit](https://llmkit.sh) instead of competing.
+- [`llmkit`](https://github.com/smigolsmigol/llmkit) - `pip install llmkit-sdk` or `npx @f3d1/llmkit-cli`. Hosted API gateway with budget enforcement, session tracking, cost dashboards, MCP server. The hosted complement to f3dx-router's in-process surface.
 
 ## Composition with ATLAS-RTC (Cruz)
 
