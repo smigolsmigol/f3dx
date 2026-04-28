@@ -1,5 +1,7 @@
 # f3dx-cache
 
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/smigolsmigol/f3dx-cache/badge)](https://scorecard.dev/viewer/?uri=github.com/smigolsmigol/f3dx-cache)
+
 LLM testing burns money. A 200-test suite re-running the same prompts against gpt-4o costs $4-20/run; a 2000-test suite costs more than a junior dev hour. Salesforce published a $500k/year saving from a mock-LLM CI rig in 2024. Every team running evals pays this tax.
 
 `f3dx-cache` is the Rust + redb cache that makes the tax go to zero. Identical (model, messages, tools, temp) requests fingerprint identically via RFC 8785 JCS + BLAKE3 and the cached response returns at <100µs. First test run records; every subsequent run replays. The model never gets called twice for the same input.
