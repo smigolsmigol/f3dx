@@ -507,7 +507,7 @@ fn recv_chunk_to_dict<'py>(
     py: Python<'py>,
     rx: &Mutex<Receiver<StreamEvent>>,
 ) -> PyResult<Bound<'py, PyDict>> {
-    let event = py.allow_threads(|| {
+    let event = py.detach(|| {
         let rx = rx.lock().expect("stream rx mutex poisoned");
         rx.recv_timeout(Duration::from_secs(120))
     });
@@ -528,7 +528,7 @@ fn recv_chunk_to_dict<'py>(
             let loads = json_module.getattr("loads")?;
             let py_obj = loads.call1((data,))?;
             py_obj
-                .downcast_into::<PyDict>()
+                .cast_into::<PyDict>()
                 .map_err(|e| PyRuntimeError::new_err(format!("chunk not dict: {e}")))
         }
         StreamEvent::Done => Err(PyStopIteration::new_err(())),

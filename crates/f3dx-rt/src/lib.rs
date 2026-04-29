@@ -334,7 +334,7 @@ fn dispatch_parallel(
     tool_table: &Arc<AHashMap<String, Py<PyAny>>>,
     calls: &[ToolCallReq],
 ) -> Vec<(String, String)> {
-    py.allow_threads(|| {
+    py.detach(|| {
         thread::scope(|s| {
             let handles: Vec<_> = calls
                 .iter()
@@ -344,7 +344,7 @@ fn dispatch_parallel(
                     let args = tc.arguments.clone();
                     let id = tc.id.clone();
                     s.spawn(move || {
-                        let result = Python::with_gil(|py| call_tool(py, &table, &name, &args));
+                        let result = Python::attach(|py| call_tool(py, &table, &name, &args));
                         (id, result)
                     })
                 })

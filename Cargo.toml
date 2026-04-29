@@ -11,7 +11,11 @@ license = "MIT"
 repository = "https://github.com/smigolsmigol/f3dx"
 
 [workspace.dependencies]
-pyo3 = { version = "0.24", features = ["abi3-py310"] }
+# Phase A consolidation prereq (2026-04-29): bumped from 0.24 to =0.28.3
+# (exact pin). This unblocks wata Phase 0.5 (wata core needs >= 0.28
+# for arrow-pyarrow 58.x). Exact pin makes resolution deterministic
+# when f3dx-cache + f3dx-router get consolidated as workspace members.
+pyo3 = { version = "=0.28.3", features = ["abi3-py310"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 ahash = "0.8"

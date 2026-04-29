@@ -137,7 +137,7 @@ impl PyAnthropicClient {
 
         let client = Arc::clone(&self.client);
         let runtime = Arc::clone(&self.runtime);
-        let parsed: Result<Value, reqwest::Error> = py.allow_threads(|| {
+        let parsed: Result<Value, reqwest::Error> = py.detach(|| {
             runtime.block_on(async move {
                 client
                     .post(&url)
@@ -223,7 +223,7 @@ impl PyAnthropicClient {
 // ---------- helpers ----------
 
 fn parse_request(py: Python<'_>, request: Bound<'_, PyAny>) -> PyResult<Value> {
-    if let Ok(s) = request.downcast::<PyString>() {
+    if let Ok(s) = request.cast::<PyString>() {
         return serde_json::from_str(&s.to_string_lossy())
             .map_err(|e| PyValueError::new_err(format!("request JSON parse: {e}")));
     }
@@ -241,6 +241,6 @@ pub(crate) fn value_to_pydict<'py>(py: Python<'py>, v: &Value) -> PyResult<Bound
     let loads = json_module.getattr("loads")?;
     let py_obj = loads.call1((s,))?;
     py_obj
-        .downcast_into::<PyDict>()
+        .cast_into::<PyDict>()
         .map_err(|e| PyRuntimeError::new_err(format!("response not dict: {e}")))
 }

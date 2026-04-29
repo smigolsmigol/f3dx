@@ -62,7 +62,7 @@ impl ClientHandler for F3dxClientHandler {
 
         let cb = Arc::clone(cb);
         let response_text = tokio::task::spawn_blocking(move || -> Result<String, String> {
-            Python::with_gil(|py| {
+            Python::attach(|py| {
                 let bound = cb.bind(py);
                 let out = bound
                     .call1((messages_json.as_str(), system_prompt.as_str()))
@@ -164,7 +164,7 @@ impl PyMCPClient {
     fn list_tools<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyList>> {
         let service = Arc::clone(&self.service);
         let runtime = Arc::clone(&self.runtime);
-        let tools = py.allow_threads(|| {
+        let tools = py.detach(|| {
             runtime.block_on(async move {
                 service
                     .list_all_tools()
@@ -222,7 +222,7 @@ impl PyMCPClient {
         let runtime = Arc::clone(&self.runtime);
         // Release the GIL during block_on so the sampling-callback path can
         // re-acquire it on the spawn_blocking thread without deadlocking.
-        let result = py.allow_threads(|| {
+        let result = py.detach(|| {
             runtime.block_on(async move {
                 service
                     .call_tool(params)
@@ -340,7 +340,7 @@ impl ServerHandler for F3dxServerHandler {
             .map_err(|e| ErrorData::internal_error(format!("args serialize: {e}"), None))?;
 
         let response_text = tokio::task::spawn_blocking(move || -> Result<String, String> {
-            Python::with_gil(|py| {
+            Python::attach(|py| {
                 let bound = cb.bind(py);
                 let out = bound
                     .call1((args_json.as_str(),))
@@ -428,7 +428,7 @@ impl PyMCPServer {
             tools: Arc::clone(&self.tools),
         };
 
-        py.allow_threads(|| {
+        py.detach(|| {
             runtime.block_on(async move {
                 let service = handler
                     .serve(stdio())
