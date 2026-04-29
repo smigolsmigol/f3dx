@@ -1,0 +1,21 @@
+[package]
+name = "f3dx-replay"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Replay LLM trace bundles against a target config + diff outputs."
+
+[lib]
+name = "f3dx_replay"
+crate-type = ["rlib"]
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+f3dx-cache = { path = "../f3dx-cache" }
+
+[lints]
+workspace = true

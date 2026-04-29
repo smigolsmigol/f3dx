@@ -1,0 +1,42 @@
+[build-system]
+requires = ["maturin>=1.13,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "f3dx-cache"
+version = "0.0.3"
+description = "Content-addressable LLM response cache + replay layer. redb + RFC 8785 JCS + BLAKE3. Drop-in for f3dx, openai, anthropic."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [
+    { name = "Federico Benini", email = "smigolsmigol@protonmail.com" },
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Testing",
+    "License :: OSI Approved :: MIT License",
+]
+
+[project.optional-dependencies]
+pytest = ["pytest>=8.0"]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.7",
+    "mypy>=1.10",
+]
+
+[project.entry-points.pytest11]
+f3dx_cache = "f3dx_cache.pytest_plugin"
+
+[tool.maturin]
+manifest-path = "crates/f3dx-cache-py/Cargo.toml"
+module-name = "f3dx_cache._native"
+features = ["pyo3/extension-module"]
+python-source = "python"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"

@@ -1,0 +1,37 @@
+target/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.so
+*.pyd
+*.dylib
+*.dll
+*.pdb
+*.redb
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+dist/
+build/
+*.egg-info/
+Cargo.lock
+
+# secrets
+.env
+.env.*
+.dev.vars
+.dev.keys
+*.pem
+*.key
+*.p12
+*.pfx
+credentials.json
+*_token
+*_secret
+.npmrc
+.pypirc
+
+# local agent state
+.claude/
+.mcp.json

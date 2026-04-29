@@ -1,0 +1,25 @@
+[package]
+name = "f3dx-cache"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Content-addressable LLM response cache. redb + RFC 8785 JCS + BLAKE3."
+
+[lib]
+name = "f3dx_cache"
+crate-type = ["rlib"]
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+redb.workspace = true
+blake3.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+tempfile = "3.10"
+
+[lints]
+workspace = true

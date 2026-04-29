@@ -1,0 +1,12 @@
+name: security
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  call:
+    uses: smigolsmigol/.github/.github/workflows/security-rust-py.yml@main
