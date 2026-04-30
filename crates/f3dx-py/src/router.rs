@@ -150,8 +150,8 @@ impl PyRouter {
             serde_json::from_str(body_json).map_err(|e| PyValueError::new_err(e.to_string()))?;
         let inner = &self.inner;
         let runtime = Arc::clone(&self.runtime);
-        let response = py
-            .detach(|| runtime.block_on(async move { inner.chat_completions(body).await }));
+        let response =
+            py.detach(|| runtime.block_on(async move { inner.chat_completions(body).await }));
         match response {
             Ok(value) => json_value_to_py(py, &value),
             Err(e) => Err(PyRuntimeError::new_err(e.to_string())),
