@@ -6,18 +6,21 @@ identically via RFC 8785 JCS + BLAKE3, so a cached response returns at
 <100 microseconds with no model call.
 
 Built for the test loop. Production paths do not point at this; CI suites,
-replay tooling, and notebooks do.
+replay tooling, notebooks, and bench fixtures do. The `cached_call` helper
+is the canonical wrapper for any closed-API call across the f3d1 ecosystem;
+see `docs/workflows/real_api_benches.md` for the full convention.
 """
 from __future__ import annotations
 
 import json
-from collections.abc import Mapping
+import os
+from collections.abc import Callable, Mapping
 from typing import Any
 
 from f3dx._f3dx.cache import Cache as _NativeCache  # type: ignore[attr-defined]
 from f3dx._f3dx.cache import diff, read_jsonl  # type: ignore[attr-defined]
 
-__all__ = ["Cache", "diff", "read_jsonl"]
+__all__ = ["Cache", "cached_call", "diff", "read_jsonl"]
 
 
 class Cache:
@@ -61,3 +64,57 @@ class Cache:
 
     def stats(self) -> dict[str, int]:
         return dict(self._inner.stats())
+
+
+def cached_call(
+    cache: Cache,
+    request: Mapping[str, Any],
+    fetch: Callable[[Mapping[str, Any]], Any],
+    *,
+    model: str | None = None,
+    encoder: Callable[[Any], bytes] = lambda obj: json.dumps(obj).encode(),
+    decoder: Callable[[bytes], Any] = lambda b: json.loads(b.decode()),
+) -> Any:
+    """Cache-backed wrapper for any closed-API call.
+
+    The canonical pattern for real-API benches, integration tests, and demos
+    across the f3d1 ecosystem. Records the first call to `fetch(request)`
+    in `cache`, replays from cache on subsequent identical requests.
+
+    Two env-var modes:
+
+      F3DX_BENCH_OFFLINE=1
+        Cache miss raises `LookupError` instead of calling `fetch`. Use in
+        CI: tests pass against a committed fixture cache, never touch the
+        live API. Set in CI workflow yaml; never default to it locally.
+
+      F3DX_BENCH_REFRESH=1
+        Force-refresh: bypass cache, call `fetch`, overwrite the cached
+        entry with the new response. Use when intentionally re-recording
+        the fixture (e.g. after the upstream model changes behavior).
+
+    `encoder` / `decoder` default to JSON; pass custom funcs if the
+    response object isn't directly JSON-serializable. The `model` kwarg
+    is stored as cache metadata for later analytics.
+
+    Raises:
+        LookupError: F3DX_BENCH_OFFLINE=1 and the request was not cached.
+    """
+    refresh = os.environ.get("F3DX_BENCH_REFRESH") == "1"
+    offline = os.environ.get("F3DX_BENCH_OFFLINE") == "1"
+
+    if not refresh:
+        cached = cache.peek(request)
+        if cached is not None:
+            return decoder(cached)
+
+    if offline:
+        raise LookupError(
+            "F3DX_BENCH_OFFLINE=1 and request not in cache. "
+            "Refresh the fixture by re-running with F3DX_BENCH_REFRESH=1 "
+            "(API key required) and commit the updated cache file."
+        )
+
+    response = fetch(request)
+    cache.put(request, encoder(response), model=model)
+    return response
