@@ -36,9 +36,17 @@ def _read_file(args: dict) -> str:
 
 
 def _bash(args: dict) -> str:
-    """Fetch fn for 'Bash' tool calls. Returns stdout."""
-    proc = subprocess.run(
-        args["cmd"], shell=True, capture_output=True, text=True, timeout=30,
+    """Fetch fn for 'Bash' tool calls. Returns stdout.
+
+    Bench-only: uses shlex.split so we can avoid shell=True (semgrep
+    dangerous-subprocess-use); production tool dispatchers should
+    accept the args as a list directly and never accept shell strings
+    from untrusted input.
+    """
+    import shlex
+    cmd_list = shlex.split(args["cmd"])
+    proc = subprocess.run(  # noqa: S603  # bench-only, no untrusted input
+        cmd_list, capture_output=True, text=True, timeout=30,
     )
     return proc.stdout or proc.stderr or ""
 
