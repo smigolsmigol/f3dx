@@ -24,5 +24,12 @@ from f3dx.fast.budget import (
     budget_max_tokens,
     estimate_from_history,
 )
+from f3dx.fast.prompt import CanonicalPrompt, cache_hit_ratio
 
-__all__ = ["BudgetEstimate", "budget_max_tokens", "estimate_from_history"]
+__all__ = [
+    "BudgetEstimate",
+    "CanonicalPrompt",
+    "budget_max_tokens",
+    "cache_hit_ratio",
+    "estimate_from_history",
+]
