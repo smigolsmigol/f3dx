@@ -47,6 +47,7 @@ from __future__ import annotations
 import json
 import time
 from collections.abc import Callable
+from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -116,9 +117,26 @@ class SpecToolDispatcher:
         *,
         safe_tools: set[str],
         fetch: Callable[[str, dict[str, Any]], Any],
+        threaded: bool = True,
+        max_workers: int = 8,
     ) -> None:
+        """`threaded=True` (V0.1 default) runs each speculative tool on a
+        worker thread so it executes in parallel with the remaining
+        stream chunks. `threaded=False` runs the tool synchronously
+        inside feed_delta -- useful for unit tests or when the caller
+        needs deterministic single-thread execution.
+
+        `max_workers` caps the threadpool when threaded=True. 8 is
+        comfortable for typical agent loops with up to a few concurrent
+        tool calls per turn; bump for fan-out heavy workloads.
+        """
         self.safe_tools = safe_tools
         self.fetch = fetch
+        self.threaded = threaded
+        self._executor: ThreadPoolExecutor | None = (
+            ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="f3dx-spec")
+            if threaded else None
+        )
         # Keyed by `index` (stable across all deltas of a single
         # tool_call) -- OpenAI sends `id` only on the FIRST delta and
         # `index` on every delta. Anthropic similarly uses
@@ -131,6 +149,21 @@ class SpecToolDispatcher:
         # harvest_by_index(0) both work.
         self._attempts_by_index: dict[int, SpecAttempt] = {}
         self._attempts_by_id: dict[str, SpecAttempt] = {}
+        # Open Futures (only populated when threaded=True). Resolved
+        # results land back into the SpecAttempt via the future callback.
+        self._futures: dict[int, Future[Any]] = {}
+
+    def __enter__(self) -> SpecToolDispatcher:
+        return self
+
+    def __exit__(self, *exc: Any) -> None:
+        self.shutdown()
+
+    def shutdown(self, wait: bool = True) -> None:
+        """Drain pending speculations and release the threadpool."""
+        if self._executor is not None:
+            self._executor.shutdown(wait=wait)
+            self._executor = None
 
     def feed_delta(self, event: dict[str, Any]) -> list[SpecAttempt]:
         """Ingest one streamed delta event. Returns the list of attempts
@@ -181,38 +214,70 @@ class SpecToolDispatcher:
     def _fire(
         self, idx: int, tc_id: str, name: str, args: dict[str, Any]
     ) -> SpecAttempt:
-        """Run the tool optimistically. Capture result + timing."""
+        """Run the tool optimistically. In threaded mode submits to the
+        worker pool and returns immediately; otherwise runs sync."""
         attempt = SpecAttempt(
             tool_call_id=tc_id,
             tool_name=name,
             args=args,
             speculation_started_at_ns=time.perf_counter_ns(),
         )
-        try:
-            attempt.result = self.fetch(name, args)
-        except Exception as e:
-            attempt.error = f"{type(e).__name__}: {e}"
-        attempt.speculation_finished_at_ns = time.perf_counter_ns()
         self._attempts_by_index[idx] = attempt
         self._attempts_by_id[tc_id] = attempt
+
+        if self.threaded and self._executor is not None:
+            # Submit to threadpool; record completes via callback so
+            # harvest() can either return cached result or block on
+            # Future.result().
+            future = self._executor.submit(self.fetch, name, args)
+            self._futures[idx] = future
+
+            def _on_done(fut: Future[Any]) -> None:
+                try:
+                    attempt.result = fut.result()
+                except Exception as e:
+                    attempt.error = f"{type(e).__name__}: {e}"
+                attempt.speculation_finished_at_ns = time.perf_counter_ns()
+
+            future.add_done_callback(_on_done)
+        else:
+            # Sync path: run in-line
+            try:
+                attempt.result = self.fetch(name, args)
+            except Exception as e:
+                attempt.error = f"{type(e).__name__}: {e}"
+            attempt.speculation_finished_at_ns = time.perf_counter_ns()
+
         return attempt
 
-    def harvest(self, tool_call_id: str) -> Any | None:
+    def harvest(self, tool_call_id: str, *, timeout: float | None = None) -> Any | None:
         """Return the speculated result for a finalized tool call, or
-        None if no speculation hit. Marks the attempt as accepted."""
+        None if no speculation hit. Blocks on the worker thread's Future
+        if the speculation is still running (threaded mode); returns
+        immediately in sync mode. `timeout` raises TimeoutError if the
+        speculation hasn't finished by then."""
         attempt = self._attempts_by_id.get(tool_call_id)
         if attempt is None:
             return None
+        # Find idx for the future lookup
+        idx = next(
+            (i for i, a in self._attempts_by_index.items() if a is attempt),
+            None,
+        )
+        if idx is not None and idx in self._futures:
+            self._futures[idx].result(timeout=timeout)  # block until done
         if attempt.error is not None:
             return None
         attempt.accepted = True
         return attempt.result
 
-    def harvest_by_index(self, idx: int) -> Any | None:
+    def harvest_by_index(self, idx: int, *, timeout: float | None = None) -> Any | None:
         """Same as harvest() but lookup by tool_call.index instead of id."""
         attempt = self._attempts_by_index.get(idx)
         if attempt is None:
             return None
+        if idx in self._futures:
+            self._futures[idx].result(timeout=timeout)
         if attempt.error is not None:
             return None
         attempt.accepted = True
