@@ -47,6 +47,70 @@ f3dx.configure_otel(
 # spans with gen_ai.system, gen_ai.request.model, gen_ai.usage.{input,output}_tokens, etc.
 ```
 
+## f3dx.cache + f3dx.router (bundled)
+
+`f3dx.cache` is content-addressable LLM response cache + replay (sub-100us warm hit). `f3dx.router` is the in-process Rust router with sequential + hedged-parallel policies. Both shipped as separate PyPI packages until 2026-04-30; now bundled into the f3dx wheel.
+
+```python
+from f3dx.cache import Cache, cached_call
+
+cache = Cache("eval_cache.redb")
+
+# Wrap any closed-API call: first run records, subsequent replay deterministically
+def fetch(req):
+    return openai.OpenAI().chat.completions.create(**req).model_dump()
+
+resp = cached_call(cache, request=req, fetch=fetch)
+# Real measured: cold OpenAI call 4647ms, warm cache.peek 3.8us = 1,222,949x speedup
+
+# Tool-result memoization: 50KB Read 223x speedup, gh CLI 111,415x speedup
+from f3dx.cache import cache_tool_call, FileWitness, TTLWitness
+
+result = cache_tool_call(
+    cache, tool="Read", args={"path": "/abs/lib.py"},
+    fetch=lambda a: open(a["path"]).read(),
+    witness=FileWitness(["/abs/lib.py"]),  # mtime-based invalidation
+)
+```
+
+```python
+from f3dx.router import Router
+
+router = Router(
+    providers=[
+        {"name": "openai", "kind": "openai", "base_url": "https://api.openai.com/v1", "api_key": "sk-..."},
+        {"name": "groq",   "kind": "openai", "base_url": "https://api.groq.com/openai/v1", "api_key": "gsk_..."},
+    ],
+    policy="hedged",  # "sequential" for failover; "hedged" for fastest-wins
+    hedge_k=2,
+)
+response = router.chat_completions({"model": "gpt-4", "messages": [...]})
+```
+
+## f3dx.fast: client-side inference acceleration
+
+Three pillars from the f3d1-fast thesis (six-pillar plan to cut Claude-Code-style 2-3 minute agentic responses to <1.5 min, software-only, against any closed API). All three real-API validated against OpenAI gpt-4o-mini with reproducible fixture-backed benches.
+
+```python
+from f3dx.fast import (
+    CanonicalPrompt,        # Pillar 2: prefix-cache canonicalization
+    cache_hit_ratio,
+    budget_max_tokens,      # Pillar 6: token budget hinting from history
+    estimate_from_history,
+)
+from f3dx.cache import cache_tool_call  # Pillar 3: tool-result memoization
+```
+
+| Pillar | What | Real-API measured |
+|---|---|---|
+| **2** prefix-cache canonicalization | Build prompts in static-first order, BLAKE3 prefix hash, model-aware cache thresholds | **91.1% cache hit rate, 45.6% input cost reduction, 3x TTFT** (gpt-4o-mini, 1280/1405 tokens cached) |
+| **3** tool-result memoization | Memoize side-effect-free tool calls with FileWitness / TTLWitness invalidation | **223x** speedup on 50KB Read, **111,415x** on `gh run list` cached at 30s TTL |
+| **6** token budget hinting | `max_tokens = ceil(p99(prior_counts) * safety_factor)` to kill the runaway-generation tail | **3,814 tokens of headroom saved per call** vs default 4096 on a runaway-prone prompt, **94% worst-case cost reduction**, zero truncations |
+
+Reproduce any of these with `python examples/{prompt_canonical,tool_cache,budget}_real_api_bench.py`. All numbers are from `bench/fixtures/openai.redb` so re-runs replay deterministically without an API key. CI runs with `F3DX_BENCH_OFFLINE=1` so cache miss is a test failure, never a silent live hit. Convention doc: `docs/workflows/real_api_benches.md`.
+
+Pillars not yet shipped: 4 (speculative tool execution, ICLR 2026 oral, 2-week build, 30-50% wall-clock cut), 5 (free-wins bundle, deprioritized for client-side scope), 1 (year-2 anchor candidate, hybrid local-target spec decoding via mistral.rs).
+
 ## Why
 
 Compound AI systems (Zaharia BAIR 2024, Mei AIOS arXiv:2403.16971) are the dominant production pattern. The orchestration + HTTP layer is now the bottleneck, not the model. Every other AI infra layer is non-Python by 2026 (vLLM C++, TGI Rust, mistral.rs Rust, Outlines-core Rust, XGrammar C++). Orchestration is the last lane; f3dx ships it.
@@ -65,7 +129,7 @@ All benches live under `bench/`, all use the stdlib mock servers in the same dir
 
 ## Architecture
 
-Cargo workspace, five crates, one PyPI package:
+Cargo workspace, seven crates, one PyPI package:
 
 ```
 f3dx/
@@ -75,7 +139,12 @@ f3dx/
     f3dx-http/    LLM HTTP client (reqwest + native SSE + streaming JSON validation)
     f3dx-trace/   OpenTelemetry span emission (Logfire-compatible, gen_ai.* semconv)
     f3dx-mcp/     Model Context Protocol client (rmcp + stdio transport)
+    f3dx-cache/   content-addressable LLM cache (redb + RFC 8785 JCS + BLAKE3)
+    f3dx-replay/  trace replay primitives (diff modes, JSONL reader)
+    f3dx-router/  in-process LLM provider router (sequential + hedged-parallel)
 ```
+
+`f3dx-cache`, `f3dx-replay`, and `f3dx-router` were standalone PyPI packages until 2026-04-30; now consolidated into the f3dx wheel via `f3dx.cache` and `f3dx.router` Python sub-modules. Old PyPI packages remain as deprecation shims that re-export from the new home.
 
 OpenAI-compatible endpoints (vLLM, Mistral, xAI, Groq, Together, Fireworks) all work via `f3dx.OpenAI` by setting `base_url`.
 
@@ -145,13 +214,13 @@ f3dx is not a multi-agent orchestration framework. It is the runtime layer below
 
 ## Sibling projects
 
-The f3d1 ecosystem on top of f3dx:
+The f3d1 ecosystem alongside f3dx:
 
 - [`tracewright`](https://github.com/smigolsmigol/tracewright) - `pip install tracewright`. Trace-replay adapter for [`pydantic-evals`](https://ai.pydantic.dev/evals/). Read an f3dx or pydantic-ai logfire JSONL trace, get a `pydantic_evals.Dataset` you can run any pydantic-evals evaluator against. Closes the loop from "we have observability" to "we have regression tests".
-- [`f3dx-cache`](https://github.com/smigolsmigol/f3dx-cache) - `pip install f3dx-cache`. Content-addressable LLM response cache + replay layer. redb + RFC 8785 JCS + BLAKE3. Identical requests fingerprint identically; cached response returns at sub-ms. CI runs the eval suite against captured prod traces at zero token cost. pytest11 plugin: `@pytest.mark.f3dx_cache`.
-- [`pydantic-cal`](https://github.com/smigolsmigol/pydantic-cal) - `pip install pydantic-cal`. Calibration metrics for pydantic-evals: ECE, MCE, ACE, Brier, reliability diagrams, Murphy 1973 decomposition, temperature/Platt/isotonic scaling, Fisher-Rao geometry kernel. The calibration layer the eval world is missing.
-- [`f3dx-router`](https://github.com/smigolsmigol/f3dx-router) - `pip install f3dx-router`. In-process Rust router for LLM providers. Hedged-parallel + 429/5xx hot-swap < 1ms. Composes with hosted gateways like [llmkit](https://llmkit.sh) instead of competing.
-- [`llmkit`](https://github.com/smigolsmigol/llmkit) - `pip install llmkit-sdk` or `npx @f3d1/llmkit-cli`. Hosted API gateway with budget enforcement, session tracking, cost dashboards, MCP server. The hosted complement to f3dx-router's in-process surface.
+- [`pydantic-cal`](https://github.com/smigolsmigol/pydantic-cal) - `pip install pydantic-cal`. Calibration metrics for pydantic-evals: ECE, smECE, MCE, ACE, Brier, reliability diagrams, Murphy 1973 decomposition, temperature/Platt/isotonic scaling, Fisher-Rao geometry kernel. The calibration layer the eval world is missing.
+- [`llmkit`](https://github.com/smigolsmigol/llmkit) - `pip install llmkit-sdk` or `npx @f3d1/llmkit-cli`. Hosted API gateway with budget enforcement, session tracking, cost dashboards, MCP server. The hosted complement to f3dx.router's in-process surface.
+
+`f3dx-cache` and `f3dx-router` used to be standalone packages here. They consolidated into f3dx on 2026-04-30 (Phase B + C of the f3d1 repo consolidation). Old PyPI packages still resolve as deprecation shims; new code should `from f3dx.cache import Cache` and `from f3dx.router import Router`.
 
 ## Composition with ATLAS-RTC (Cruz)
 
@@ -272,12 +341,13 @@ msg = llm.invoke('hi')                          # sync + ainvoke both routed via
 ## What's not here yet
 
 - Gemini adapter (Phase C.2)
-- MCP V0.1: SSE + streamable-HTTP transports + sampling callback bridge (V0 ships stdio only; covers Claude Desktop + every npm-based server + python-based servers via `python -m`)
-- Parent-child trace context propagation between AgentRuntime span and HTTP child spans (needs Python-side context bridge)
-- Phase E V0.2.2: full streaming JSON parser (V0.2.1 ships fail-fast on invalid JSON prefix - catches the dominant LLM-prefaces-with-prose case in 5-10 tokens; bracket-balance + per-token schema FSM are the next steps)
-- Phase E V0.2.3: per-token JSON Schema state machine (V0.2 ships terminal-time `output_schema=` via `jsonschema-rs`; full per-token schema FSM lands once V0.2.2 is in)
-- Phase G V0.3: Rust-side parquet sink (V0.2 ships `AppendingParquetWriter` + `tail_jsonl_to_parquet` Python-side via pyarrow under `f3dx[arrow]`; a Rust-native sink would skip the JSONL middlefile but adds ~30MB to the wheel - deferred unless requested)
-- `langchain-f3dx` standalone PyPI package per LangChain partner-package convention (today integrated via the `f3dx[langchain]` extra; standalone-package split happens before LangChain partner-registry submission)
+- f3d1-fast Pillar 4: speculative tool execution (Sutradhara streaming JSON parser hooks SSE, fires sandboxed tools optimistically when tool_use chunks parse cleanly, rollback on retract). 2-week build, ICLR 2026 oral validates the approach, 30-50% wall-clock cut reported.
+- f3d1-fast Pillar 1 (year-2 candidate): hybrid local-target speculative decoding via mistral.rs + Qwen2.5-Coder. 6-8 week build, 5-8x throughput on agentic loops where ~80% of turns can route to a local 7B target.
+- f3dx.fast.CanonicalPrompt V0.1: Anthropic real-API validation with explicit `cache_control` markers + auto-tuning (measure hit rate, nudge marker placement). Depends on wata schema cache columns.
+- Parent-child trace context propagation between AgentRuntime span and HTTP child spans (needs Python-side context bridge).
+- Phase E V0.2.2: full streaming JSON parser (V0.2.1 ships fail-fast on invalid JSON prefix; bracket-balance + per-token schema FSM are the next steps).
+- Phase G V0.3: Rust-side parquet sink (V0.2 ships `AppendingParquetWriter` + `tail_jsonl_to_parquet` Python-side via pyarrow under `f3dx[arrow]`; Rust-native sink would skip the JSONL middlefile but adds ~30MB to the wheel - deferred unless requested).
+- `langchain-f3dx` standalone PyPI package per LangChain partner-package convention (today integrated via the `f3dx[langchain]` extra; standalone-package split happens before LangChain partner-registry submission).
 
 ## License
 
