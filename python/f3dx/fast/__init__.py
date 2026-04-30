@@ -25,10 +25,18 @@ from f3dx.fast.budget import (
     estimate_from_history,
 )
 from f3dx.fast.prompt import CanonicalPrompt, cache_hit_ratio
+from f3dx.fast.spec_tool import (
+    SpecAttempt,
+    SpecToolDispatcher,
+    StreamingJSONAccumulator,
+)
 
 __all__ = [
     "BudgetEstimate",
     "CanonicalPrompt",
+    "SpecAttempt",
+    "SpecToolDispatcher",
+    "StreamingJSONAccumulator",
     "budget_max_tokens",
     "cache_hit_ratio",
     "estimate_from_history",
