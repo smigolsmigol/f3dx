@@ -20,7 +20,19 @@ from typing import Any
 from f3dx._f3dx.cache import Cache as _NativeCache  # type: ignore[attr-defined]
 from f3dx._f3dx.cache import diff, read_jsonl  # type: ignore[attr-defined]
 
-__all__ = ["Cache", "cached_call", "diff", "read_jsonl"]
+__all__ = [
+    "Cache",
+    "cached_call",
+    "diff",
+    "read_jsonl",
+    # Pillar 3: tool-result memoization (re-exported from .tools submodule)
+    "FileWitness",
+    "TTLWitness",
+    "EnvWitness",
+    "CompositeWitness",
+    "cache_tool_call",
+    "fingerprint_args",
+]
 
 
 class Cache:
@@ -118,3 +130,16 @@ def cached_call(
     response = fetch(request)
     cache.put(request, encoder(response), model=model)
     return response
+
+
+# Re-export tools submodule symbols at package level so users can do
+# `from f3dx.cache import cache_tool_call, FileWitness` without the
+# extra import path. Done at the bottom to avoid circular import.
+from f3dx.cache.tools import (  # noqa: E402
+    CompositeWitness,
+    EnvWitness,
+    FileWitness,
+    TTLWitness,
+    cache_tool_call,
+    fingerprint_args,
+)
