@@ -1,22 +1,23 @@
 //! PyO3 bridge for f3dx-cache + f3dx-replay.
 //!
-//! Python surface:
-//!   f3dx_cache.Cache(path)      open / create a cache file
-//!   cache.get(req)              -> Optional[bytes]
-//!   cache.put(req, resp, **meta) -> str (fingerprint hex)
-//!   cache.fingerprint(req)      -> str (hex; pure function, no side-effect)
-//!   cache.stats()               -> dict
-//!   f3dx_cache.diff(a, b, mode) -> tuple[bool, Optional[str]]
-//!   f3dx_cache.read_jsonl(path) -> list[dict]
+//! Python surface (under f3dx.cache):
+//!   Cache(path)                     open / create a cache file
+//!   cache.get(req)                  -> Optional[bytes]
+//!   cache.put(req, resp, **meta)    -> str (fingerprint hex)
+//!   cache.fingerprint(req)          -> str (hex; pure, no side-effect)
+//!   cache.peek(req)                 -> Optional[bytes] (no hit-count bump)
+//!   cache.stats()                   -> dict
+//!   diff(a, b, mode)                -> tuple[bool, Optional[str]]
+//!   read_jsonl(path)                -> list[dict]
 
-use f3dx_cache_core::{Cache as CoreCache, CachedMeta};
+use f3dx_cache::{Cache as CoreCache, CachedMeta};
 use f3dx_replay::{DiffMode, diff as core_diff, read_jsonl as core_read_jsonl};
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict};
 use std::sync::Mutex;
 
-#[pyclass(name = "Cache", module = "f3dx_cache")]
+#[pyclass(name = "Cache", module = "f3dx.cache")]
 struct PyCache {
     inner: Mutex<CoreCache>,
 }
@@ -81,10 +82,6 @@ impl PyCache {
         Ok(res.map(|b| PyBytes::new(py, &b)))
     }
 
-    /// Read-only lookup: skips the hit-count bump for sub-100us warm hits.
-    /// Use this when stats accuracy is not needed - typical case is CI
-    /// replay against a captured trace, where the cardinality of cache
-    /// hits is already known.
     fn peek<'py>(
         &self,
         py: Python<'py>,
@@ -187,10 +184,22 @@ fn json_to_pyobject<'py>(
     }
 }
 
-#[pymodule]
-fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
+/// Register f3dx-cache + f3dx-replay's pyclasses into a child submodule
+/// `cache` under the parent `_f3dx` extension. Python surface is
+/// `f3dx._f3dx.cache.Cache`, etc., re-exported at `f3dx.cache.*` via
+/// the python wrapper at `python/f3dx/cache/__init__.py`.
+pub fn register(parent: &Bound<'_, PyModule>) -> PyResult<()> {
+    let py = parent.py();
+    let m = PyModule::new(py, "cache")?;
     m.add_class::<PyCache>()?;
-    m.add_function(wrap_pyfunction!(diff, m)?)?;
-    m.add_function(wrap_pyfunction!(read_jsonl, m)?)?;
+    m.add_function(wrap_pyfunction!(diff, &m)?)?;
+    m.add_function(wrap_pyfunction!(read_jsonl, &m)?)?;
+    parent.add_submodule(&m)?;
+    // pyo3 add_submodule alone does not make the submodule importable via
+    // `from f3dx._f3dx.cache import X`. Register in sys.modules so Python's
+    // import machinery resolves it. Standard pyo3 0.20+ pattern.
+    py.import("sys")?
+        .getattr("modules")?
+        .set_item("f3dx._f3dx.cache", &m)?;
     Ok(())
 }

@@ -28,6 +28,14 @@ openai-compat = [
 arrow = [
     "pyarrow>=18.0",
 ]
+cache = [
+    # f3dx.cache - content-addressable LLM response cache, redb + JCS + BLAKE3.
+    # The Rust core ships in the f3dx wheel; this extra exists as a
+    # documentation pointer. Consolidated from smigolsmigol/f3dx-cache in
+    # Phase B of the f3d1 repo consolidation (2026-04-30). Use:
+    #   pip install f3dx[cache]
+    #   from f3dx.cache import Cache
+]
 atlas-rtc = [
     # atlas-rtc isn't on PyPI yet (cruz209/ATLAS-RTC is github-only). PyPI
     # rejects packages with direct-url dependencies in extras, so the user

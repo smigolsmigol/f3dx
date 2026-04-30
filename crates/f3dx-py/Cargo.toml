@@ -16,7 +16,10 @@ f3dx-rt = { path = "../f3dx-rt" }
 f3dx-http = { path = "../f3dx-http" }
 f3dx-trace = { path = "../f3dx-trace" }
 f3dx-mcp = { path = "../f3dx-mcp" }
+f3dx-cache = { path = "../f3dx-cache" }
+f3dx-replay = { path = "../f3dx-replay" }
 pyo3 = { workspace = true, features = ["extension-module"] }
+serde_json = { workspace = true }
 
 [lints]
 workspace = true

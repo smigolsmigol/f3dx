@@ -1,4 +1,4 @@
-"""f3dx-cache: content-addressable LLM response cache + replay.
+"""f3dx.cache: content-addressable LLM response cache + replay.
 
 The Cache class wraps a redb file with three tables (requests, responses,
 meta). Identical (model, messages, tools, temp, ...) requests fingerprint
@@ -14,8 +14,8 @@ import json
 from collections.abc import Mapping
 from typing import Any
 
-from f3dx_cache._native import Cache as _NativeCache
-from f3dx_cache._native import diff, read_jsonl
+from f3dx._f3dx.cache import Cache as _NativeCache  # type: ignore[attr-defined]
+from f3dx._f3dx.cache import diff, read_jsonl  # type: ignore[attr-defined]
 
 __all__ = ["Cache", "diff", "read_jsonl"]
 
@@ -54,6 +54,10 @@ class Cache:
 
     def get(self, request: Mapping[str, Any]) -> bytes | None:
         return self._inner.get(json.dumps(request))
+
+    def peek(self, request: Mapping[str, Any]) -> bytes | None:
+        """Read-only lookup: skips the hit-count bump for sub-100us warm hits."""
+        return self._inner.peek(json.dumps(request))
 
     def stats(self) -> dict[str, int]:
         return dict(self._inner.stats())

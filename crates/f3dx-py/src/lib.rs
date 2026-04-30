@@ -8,6 +8,8 @@
 use pyo3::prelude::*;
 use std::sync::Once;
 
+mod cache;
+
 static PANIC_HOOK_INIT: Once = Once::new();
 
 fn install_panic_hook() {
@@ -38,6 +40,7 @@ fn _f3dx(m: &Bound<'_, PyModule>) -> PyResult<()> {
     f3dx_http::register(m)?;
     f3dx_trace::register(m)?;
     f3dx_mcp::register(m)?;
+    cache::register(m)?;
     m.add("__version__", env!("CARGO_PKG_VERSION"))?;
     Ok(())
 }

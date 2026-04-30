@@ -1,16 +1,16 @@
-"""End-to-end smoke test for f3dx-cache.
+"""Smoke test for the consolidated f3dx.cache module (Phase B).
 
-Exercises the Python surface: open, fingerprint, put, get, stats, diff,
-read_jsonl. Run with `python examples/smoke.py` after `maturin develop`.
+Mirrors the original f3dx-cache examples/smoke.py, but imports from
+the new f3dx.cache namespace instead of the old f3dx_cache top-level package.
+Verifies that the subtree-merge + binding refactor preserves the surface.
 """
 from __future__ import annotations
 
-import json
 import tempfile
 import time
 from pathlib import Path
 
-from f3dx_cache import Cache, diff, read_jsonl
+from f3dx.cache import Cache, diff, read_jsonl
 
 
 def main() -> None:
@@ -44,6 +44,12 @@ def main() -> None:
         assert hit == body, "warm-cache hit must return original bytes"
         print(f"warm-cache hit OK (put {put_ns/1000:.1f}us, get {get_ns/1000:.1f}us)")
 
+        t0 = time.perf_counter_ns()
+        peek = cache.peek(req_b)
+        peek_ns = time.perf_counter_ns() - t0
+        assert peek == body, "peek must return original bytes (read-only)"
+        print(f"peek OK ({peek_ns/1000:.1f}us, no hit-count bump)")
+
         stats = cache.stats()
         assert stats["entries"] == 1
         assert stats["hits"] >= 1
@@ -58,21 +64,21 @@ def main() -> None:
         print("diff structured OK")
 
         ok, note = diff('{"a":1}', '{"a":2}', mode="structured")
-        assert not ok, "structured diff must fail on value change"
+        assert not ok, "structured diff must fail on value mismatch"
         print(f"diff structured fail-path OK ({note})")
 
+        # read_jsonl smoke
         jsonl_path = Path(tmp) / "trace.jsonl"
-        rows = [
-            {"trace_id": "t1", "model": "gpt-4o", "prompt": "hi", "output": '{"r":1}'},
-            {"trace_id": "t2", "model": "gpt-4o", "prompt": "hello", "output": '{"r":2}'},
-        ]
-        jsonl_path.write_text("\n".join(json.dumps(r) for r in rows) + "\n", encoding="utf-8")
-        loaded = read_jsonl(str(jsonl_path))
-        assert len(loaded) == 2
-        assert loaded[0]["trace_id"] == "t1"
-        print(f"read_jsonl OK ({len(loaded)} rows)")
+        jsonl_path.write_text('{"a":1}\n{"b":[1,2,3]}\n', encoding="utf-8")
+        rows = read_jsonl(str(jsonl_path))
+        assert len(rows) == 2
+        # read_jsonl is from f3dx-replay; adds nullable trace fields. Just
+        # verify the user-supplied keys round-trip.
+        assert rows[0].get("a") == 1
+        assert rows[1].get("b") == [1, 2, 3]
+        print(f"read_jsonl OK ({len(rows)} rows)")
 
-    print("\nALL SMOKE TESTS PASSED")
+        print("\nALL SMOKE TESTS PASSED -- f3dx.cache consolidated module surface intact")
 
 
 if __name__ == "__main__":
