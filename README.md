@@ -47,69 +47,64 @@ f3dx.configure_otel(
 # spans with gen_ai.system, gen_ai.request.model, gen_ai.usage.{input,output}_tokens, etc.
 ```
 
-## f3dx.cache + f3dx.router (bundled)
-
-`f3dx.cache` is content-addressable LLM response cache + replay (sub-100us warm hit). `f3dx.router` is the in-process Rust router with sequential + hedged-parallel policies. Both shipped as separate PyPI packages until 2026-04-30; now bundled into the f3dx wheel.
+## cache + router
 
 ```python
-from f3dx.cache import Cache, cached_call
-
-cache = Cache("eval_cache.redb")
-
-# Wrap any closed-API call: first run records, subsequent replay deterministically
-def fetch(req):
-    return openai.OpenAI().chat.completions.create(**req).model_dump()
-
-resp = cached_call(cache, request=req, fetch=fetch)
-# Real measured: cold OpenAI call 4647ms, warm cache.peek 3.8us = 1,222,949x speedup
-
-# Tool-result memoization: 50KB Read 223x speedup, gh CLI 111,415x speedup
-from f3dx.cache import cache_tool_call, FileWitness, TTLWitness
-
-result = cache_tool_call(
-    cache, tool="Read", args={"path": "/abs/lib.py"},
-    fetch=lambda a: open(a["path"]).read(),
-    witness=FileWitness(["/abs/lib.py"]),  # mtime-based invalidation
-)
+from f3dx.cache import Cache, cached_call, cache_tool_call, FileWitness
+from f3dx.router import Router
 ```
 
-```python
-from f3dx.router import Router
+content-addressable LLM response cache + replay, redb + RFC 8785 JCS + BLAKE3 fingerprint. `cached_call` wraps any closed-API hit so the first run records and the rest replay from the cache file. `cache_tool_call` does the same for filesystem reads and shell calls, with mtime / TTL witnesses so a touched file invalidates without a custom invalidator.
 
-router = Router(
-    providers=[
-        {"name": "openai", "kind": "openai", "base_url": "https://api.openai.com/v1", "api_key": "sk-..."},
-        {"name": "groq",   "kind": "openai", "base_url": "https://api.groq.com/openai/v1", "api_key": "gsk_..."},
-    ],
-    policy="hedged",  # "sequential" for failover; "hedged" for fastest-wins
-    hedge_k=2,
-)
+```python
+cache = Cache("eval.redb")
+resp = cached_call(cache, request, fetch=lambda r: openai.OpenAI().chat.completions.create(**r).model_dump())
+
+result = cache_tool_call(cache, tool="Read", args={"path": "/abs/lib.py"},
+                        fetch=lambda a: open(a["path"]).read(),
+                        witness=FileWitness(["/abs/lib.py"]))
+```
+
+router holds N providers, picks one by `policy`. `sequential` falls through on 429/5xx. `hedged` fans out to the top `hedge_k`, takes the first response, cancels the losers.
+
+```python
+router = Router(providers=[
+    {"name": "openai", "kind": "openai", "base_url": "https://api.openai.com/v1", "api_key": "sk-..."},
+    {"name": "groq",   "kind": "openai", "base_url": "https://api.groq.com/openai/v1", "api_key": "gsk_..."},
+], policy="hedged", hedge_k=2)
+
 response = router.chat_completions({"model": "gpt-4", "messages": [...]})
 ```
 
-## f3dx.fast: client-side inference acceleration
+both used to be separate PyPI packages (`f3dx-cache`, `f3dx-router`); folded into f3dx on 2026-04-30 as workspace members. the old packages stay on PyPI as deprecation shims for a few months. new code: `pip install f3dx[cache,router]`.
 
-Three pillars from the f3d1-fast thesis (six-pillar plan to cut Claude-Code-style 2-3 minute agentic responses to <1.5 min, software-only, against any closed API). All three real-API validated against OpenAI gpt-4o-mini with reproducible fixture-backed benches.
+## f3dx.fast
+
+four primitives that cut closed-API spend on long agentic loops. all benched against gpt-4o-mini, fixtures committed under `bench/fixtures/`, replay is offline by default.
 
 ```python
-from f3dx.fast import (
-    CanonicalPrompt,        # Pillar 2: prefix-cache canonicalization
-    cache_hit_ratio,
-    budget_max_tokens,      # Pillar 6: token budget hinting from history
-    estimate_from_history,
-)
-from f3dx.cache import cache_tool_call  # Pillar 3: tool-result memoization
+from f3dx.fast import CanonicalPrompt, cache_hit_ratio, budget_max_tokens, estimate_from_history
 ```
 
-| Pillar | What | Real-API measured |
-|---|---|---|
-| **2** prefix-cache canonicalization | Build prompts in static-first order, BLAKE3 prefix hash, model-aware cache thresholds | **91.1% cache hit rate, 45.6% input cost reduction, 3x TTFT** (gpt-4o-mini, 1280/1405 tokens cached) |
-| **3** tool-result memoization | Memoize side-effect-free tool calls with FileWitness / TTLWitness invalidation | **223x** speedup on 50KB Read, **111,415x** on `gh run list` cached at 30s TTL |
-| **6** token budget hinting | `max_tokens = ceil(p99(prior_counts) * safety_factor)` to kill the runaway-generation tail | **3,814 tokens of headroom saved per call** vs default 4096 on a runaway-prone prompt, **94% worst-case cost reduction**, zero truncations |
+`CanonicalPrompt` orders the prompt body so the static prefix (tools, system, frozen turns) stays bytes-identical across calls. With OpenAI's automatic prefix cache + a stable `prompt_cache_key`, that prefix gets billed at 50% from the second turn on. On a 3-turn agentic loop with a 1500-token prefix we measured 91% cache hit rate against the same workload's naive baseline of 0%, which works out to 28.6% off the input bill.
 
-Reproduce any of these with `python examples/{prompt_canonical,tool_cache,budget}_real_api_bench.py`. All numbers are from `bench/fixtures/openai.redb` so re-runs replay deterministically without an API key. CI runs with `F3DX_BENCH_OFFLINE=1` so cache miss is a test failure, never a silent live hit. Convention doc: `docs/workflows/real_api_benches.md`.
+`cache_tool_call` (above, in `f3dx.cache`) memoizes safe tools across an agentic loop. A 50KB `Read` of an unchanged file lands in 42us instead of the 9.4ms filesystem hit. A `gh run list` cached at 30s TTL drops from 702ms (subprocess + network) to 6us.
 
-Pillars not yet shipped: 4 (speculative tool execution, ICLR 2026 oral, 2-week build, 30-50% wall-clock cut), 5 (free-wins bundle, deprioritized for client-side scope), 1 (year-2 anchor candidate, hybrid local-target spec decoding via mistral.rs).
+`budget_max_tokens` reads recent completion-token counts and hands back a `max_tokens` cap at `ceil(p99 * 1.2)`. On runaway-prone prompts where the default 4096 is mostly wasted headroom this saves ~94% of the upper bound per call without truncating.
+
+`SpecToolDispatcher` runs side-effect-free tools as soon as their streamed JSON arguments parse cleanly, in parallel with the rest of the response stream. On a synthetic 3-tool turn that would have run 1.6s sync this drops to 1.0s. The implementation is the Sutradhara primitive (arXiv 2601.12967, ICLR 2026 oral). Tool whitelist is the only safety boundary; never speculate on Edit / Write / git push.
+
+```python
+from f3dx.fast import SpecToolDispatcher
+disp = SpecToolDispatcher(safe_tools={"Read", "Glob", "Grep", "Bash_status"}, fetch=run_tool)
+for chunk in stream:
+    disp.feed_delta(chunk)
+result = disp.harvest(tool_call_id)
+```
+
+The benches under `examples/*_real_api_bench.py` reproduce the numbers from `bench/fixtures/openai.redb`. CI runs with `F3DX_BENCH_OFFLINE=1` so a cache miss fails loud rather than hitting OpenAI silently. The convention is documented at `docs/workflows/real_api_benches.md`.
+
+What's not in here yet: hybrid local-target speculative decoding (a 7B target via `mistral.rs` with a 0.5B draft, routing only hard turns to closed APIs); that's a year-2 build.
 
 ## Why
 
