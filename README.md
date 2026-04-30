@@ -92,7 +92,7 @@ from f3dx.fast import CanonicalPrompt, cache_hit_ratio, budget_max_tokens, estim
 
 `budget_max_tokens` reads recent completion-token counts and hands back a `max_tokens` cap at `ceil(p99 * 1.2)`. On runaway-prone prompts where the default 4096 is mostly wasted headroom this saves ~94% of the upper bound per call without truncating.
 
-`SpecToolDispatcher` runs side-effect-free tools as soon as their streamed JSON arguments parse cleanly, in parallel with the rest of the response stream. On a synthetic 3-tool turn that would have run 1.6s sync this drops to 1.0s. The implementation is the Sutradhara primitive (arXiv 2601.12967, ICLR 2026 oral). Tool whitelist is the only safety boundary; never speculate on Edit / Write / git push.
+`SpecToolDispatcher` runs side-effect-free tools the moment their streamed JSON arguments parse cleanly, parallel with the rest of the stream; we measured 1.6s sync to 1.0s threaded on a synthetic 3-tool turn. The implementation is the Sutradhara primitive (arXiv 2601.12967, ICLR 2026 oral). Tool whitelist is the only safety boundary. Never speculate on Edit, Write, git push.
 
 ```python
 from f3dx.fast import SpecToolDispatcher
