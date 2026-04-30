@@ -17,3 +17,11 @@ python/f3dx/_f3dx.pyd
 python/f3dx/__pycache__/
 bench/__pycache__/
 *.pdb
+
+# secrets defense-in-depth (no current leak; prevent accidental commit)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
