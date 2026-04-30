@@ -36,6 +36,13 @@ cache = [
     #   pip install f3dx[cache]
     #   from f3dx.cache import Cache
 ]
+router = [
+    # f3dx.router - in-process Rust router for LLM providers, sequential
+    # + hedged-parallel policies, sub-1ms hot-swap on 429/5xx. Same Phase B
+    # consolidation as cache. Use:
+    #   pip install f3dx[router]
+    #   from f3dx.router import Router
+]
 atlas-rtc = [
     # atlas-rtc isn't on PyPI yet (cruz209/ATLAS-RTC is github-only). PyPI
     # rejects packages with direct-url dependencies in extras, so the user

@@ -1,7 +1,7 @@
 //! PyO3 bridge for f3dx-router.
 //!
-//! Python surface:
-//!   f3dx_router.Router(providers, policy='sequential', hedge_k=2)
+//! Python surface (under f3dx.router):
+//!   Router(providers, policy='sequential', hedge_k=2)
 //!   router.chat_completions(body) -> dict
 //!
 //! Providers come in as a list of dicts with keys:
@@ -9,14 +9,14 @@
 //!    "api_key": str, "timeout_ms": int (default 30000),
 //!    "weight": int (default 1)}
 
-use f3dx_router_core::{Provider, ProviderKind, Router as CoreRouter, RouterConfig, RoutingPolicy};
+use f3dx_router::{Provider, ProviderKind, Router as CoreRouter, RouterConfig, RoutingPolicy};
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 use std::sync::Arc;
 use tokio::runtime::Runtime;
 
-#[pyclass(name = "Router", module = "f3dx_router")]
+#[pyclass(name = "Router", module = "f3dx.router")]
 struct PyRouter {
     inner: CoreRouter,
     runtime: Arc<Runtime>,
@@ -159,8 +159,17 @@ impl PyRouter {
     }
 }
 
-#[pymodule]
-fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
+/// Register f3dx-router's pyclasses into a child submodule `router`
+/// under the parent `_f3dx` extension. Python surface is
+/// `f3dx._f3dx.router.Router`, re-exported at `f3dx.router.*` via
+/// the python wrapper at `python/f3dx/router/__init__.py`.
+pub fn register(parent: &Bound<'_, PyModule>) -> PyResult<()> {
+    let py = parent.py();
+    let m = PyModule::new(py, "router")?;
     m.add_class::<PyRouter>()?;
+    parent.add_submodule(&m)?;
+    py.import("sys")?
+        .getattr("modules")?
+        .set_item("f3dx._f3dx.router", &m)?;
     Ok(())
 }

@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/f3dx-py", "crates/f3dx-rt", "crates/f3dx-http", "crates/f3dx-trace", "crates/f3dx-mcp", "crates/f3dx-cache", "crates/f3dx-replay"]
+members = ["crates/f3dx-py", "crates/f3dx-rt", "crates/f3dx-http", "crates/f3dx-trace", "crates/f3dx-mcp", "crates/f3dx-cache", "crates/f3dx-replay", "crates/f3dx-router"]
 
 [workspace.package]
 version = "0.0.17"
@@ -20,10 +20,13 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 ahash = "0.8"
 bytes = "1.10"
-# Phase B consolidation deps (from f3dx-cache subtree merge, 2026-04-30):
+# Phase B consolidation deps (from f3dx-cache + f3dx-router subtree merges, 2026-04-30):
 redb = "2.2"
 blake3 = "1.5"
 thiserror = "1.0"
+reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
+tokio = { version = "1.40", features = ["rt-multi-thread", "macros", "sync", "time"] }
+futures = "0.3"
 
 [workspace.lints.clippy]
 dbg_macro = "warn"

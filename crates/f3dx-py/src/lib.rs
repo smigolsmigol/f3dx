@@ -9,6 +9,7 @@ use pyo3::prelude::*;
 use std::sync::Once;
 
 mod cache;
+mod router;
 
 static PANIC_HOOK_INIT: Once = Once::new();
 
@@ -41,6 +42,7 @@ fn _f3dx(m: &Bound<'_, PyModule>) -> PyResult<()> {
     f3dx_trace::register(m)?;
     f3dx_mcp::register(m)?;
     cache::register(m)?;
+    router::register(m)?;
     m.add("__version__", env!("CARGO_PKG_VERSION"))?;
     Ok(())
 }
