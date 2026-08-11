@@ -22,7 +22,7 @@ rmcp = { version = "1.5", default-features = false, features = [
     "transport-io",
     "transport-streamable-http-client-reqwest",
 ] }
-schemars = "0.8"
+schemars = "1.2"
 
 [lints]
 workspace = true
