@@ -331,7 +331,7 @@ pub fn validate_records(records: &[SessionEvent]) -> ValidationReport {
         known_refs.insert((event.session_id.as_str(), event.sequence));
     }
 
-    let mut duplicate_effect_ids = effect_counts
+    let mut duplicate_effect_ids: Vec<String> = effect_counts
         .into_iter()
         .filter_map(|(effect_id, count)| (count > 1).then_some(effect_id.to_owned()))
         .collect();
