@@ -80,6 +80,12 @@ OpenAI-compatible providers can be selected with `base_url`.
 
 It is not an end-to-end agent client. Provider clients and framework adapters remain separate so model transport is never hidden inside the loop. The executable fixture in [`bench/bench_concurrent.py`](bench/bench_concurrent.py) shows the complete contract.
 
+For runs that need crash recovery evidence, pass `session_journal_path="run.journal"`. The native journal records bounded metadata for run starts, model turns, tool-result ids, and completion. It never captures prompts or tool arguments, repairs only a partial final frame, and rejects complete frames whose hash chain or event JSON is invalid. The focused consumer check is [`bench/verify_session_journal.py`](bench/verify_session_journal.py).
+
+On Windows, an application that already owns a child process can also pass its raw `process_handle`. f3dx places that process in a Job Object for the run lifetime; closing the lease reaps descendants. The caller retains ownership of the process handle, and the option is unsupported unless explicitly requested on Windows.
+
+`f3dx.SessionJournal(path, session_id)` is the small inspection and append surface for applications that need to read the verified records directly. Its `validate_json()` report is intentionally diagnostic: duplicate effect ids and cross-session or dangling references are surfaced for the caller to gate. A journal path is single-writer; this slice does not pretend to coordinate multiple processes or make effects idempotent.
+
 ## MCP
 
 ```python
@@ -147,6 +153,7 @@ PyO3 package: f3dx
         +-- f3dx-mcp      MCP transports and callbacks
         +-- f3dx-cache    response cache
         +-- f3dx-router   provider selection
+        +-- f3dx-session  crash-safe session journal and Windows process lease
 ```
 
 The model endpoint remains external. f3dx is not an inference engine, a hosted gateway, or a multi-agent product.
@@ -156,6 +163,7 @@ The model endpoint remains external. f3dx is not an inference engine, a hosted g
 - Native clients return f3dx types; compatibility clients return upstream SDK types.
 - Trace capture is process-local and must be enabled explicitly.
 - `AgentRuntime` coordinates supplied model turns; it does not select or host a model.
+- Session journaling is opt-in and records metadata only; it is not a prompt archive or an idempotency service.
 - Local mock benchmarks isolate runtime overhead and do not predict provider behavior.
 - Optional integrations can change as upstream SDK contracts change; the current CI gate tests the resolved dependency set on every supported operating system.
 

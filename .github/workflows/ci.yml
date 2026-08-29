@@ -45,6 +45,9 @@ jobs:
       - name: cargo clippy
         run: cargo clippy --all-targets --release -- -D warnings
 
+      - name: Rust tests - native session boundary
+        run: cargo test --package f3dx-session --all-targets
+
       - name: Install maturin + bench deps
         run: |
           python -m pip install --upgrade pip
@@ -62,6 +65,9 @@ jobs:
 
       - name: Smoke import (compat shim)
         run: python -c "from f3dx.compat import OpenAI; import openai; print('OpenAI subclass:', issubclass(OpenAI, openai.OpenAI))"
+
+      - name: Verify - opt-in native session journal
+        run: python bench/verify_session_journal.py
 
       - name: Bench - concurrent tool dispatch
         run: python bench/bench_concurrent.py

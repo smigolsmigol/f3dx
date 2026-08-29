@@ -15,6 +15,7 @@
 use ahash::AHashMap;
 use opentelemetry::KeyValue;
 use opentelemetry::trace::{Span, Status, Tracer as _};
+use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 use serde::{Deserialize, Serialize};
@@ -70,6 +71,8 @@ pub struct AgentRuntime {
     max_iterations: usize,
     max_tool_calls: usize,
     concurrent_tool_dispatch: bool,
+    session_journal_path: Option<String>,
+    process_handle: Option<usize>,
 }
 
 #[pymethods]
@@ -80,18 +83,24 @@ impl AgentRuntime {
         max_iterations = 10,
         max_tool_calls = 20,
         concurrent_tool_dispatch = false,
+        session_journal_path = None,
+        process_handle = None,
     ))]
     pub fn new(
         system_prompt: String,
         max_iterations: usize,
         max_tool_calls: usize,
         concurrent_tool_dispatch: bool,
+        session_journal_path: Option<String>,
+        process_handle: Option<usize>,
     ) -> Self {
         Self {
             system_prompt,
             max_iterations,
             max_tool_calls,
             concurrent_tool_dispatch,
+            session_journal_path,
+            process_handle,
         }
     }
 
@@ -103,6 +112,35 @@ impl AgentRuntime {
         mock_responses: Bound<'py, PyList>,
     ) -> PyResult<Bound<'py, PyDict>> {
         let t_start = Instant::now();
+        let _process_lease = self
+            .process_handle
+            .map(|handle| f3dx_session::ProcessLease::attach(handle, true))
+            .transpose()
+            .map_err(|e| PyRuntimeError::new_err(format!("process lease: {e}")))?;
+        let mut session_journal = self
+            .session_journal_path
+            .as_deref()
+            .map(|path| {
+                f3dx_session::Journal::open_for_session(path, session_id())
+                    .map_err(|e| PyRuntimeError::new_err(format!("session journal: {e}")))
+            })
+            .transpose()?;
+        if let Some(journal) = session_journal.as_ref() {
+            journal
+                .append(
+                    "run_started",
+                    None,
+                    Vec::new(),
+                    serde_json::json!({
+                        "system_prompt_chars": self.system_prompt.len(),
+                        "prompt_chars": prompt.len(),
+                        "max_iterations": self.max_iterations,
+                        "max_tool_calls": self.max_tool_calls,
+                        "concurrent_tool_dispatch": self.concurrent_tool_dispatch,
+                    }),
+                )
+                .map_err(|e| PyRuntimeError::new_err(format!("session journal: {e}")))?;
+        }
         let mut span = f3dx_trace::tracer().map(|t| {
             let mut s = t.start("f3dx.agent_runtime.run");
             s.set_attribute(KeyValue::new("gen_ai.system", "f3dx"));
@@ -182,6 +220,20 @@ impl AgentRuntime {
                 tool_calls: response.tool_calls.clone(),
                 tool_call_id: None,
             });
+            if let Some(journal) = session_journal.as_ref() {
+                journal
+                    .append(
+                        "model_turn",
+                        None,
+                        Vec::new(),
+                        serde_json::json!({
+                            "iteration": iter_done,
+                            "content_chars": response.content.len(),
+                            "tool_calls": response.tool_calls.iter().map(|call| &call.id).collect::<Vec<_>>(),
+                        }),
+                    )
+                    .map_err(|e| PyRuntimeError::new_err(format!("session journal: {e}")))?;
+            }
 
             if response.tool_calls.is_empty() {
                 final_answer = response.content;
@@ -205,6 +257,16 @@ impl AgentRuntime {
             tool_calls_executed += calls_to_run.len();
 
             for (id, result_str) in results {
+                if let Some(journal) = session_journal.as_ref() {
+                    journal
+                        .append(
+                            "tool_result",
+                            Some(id.clone()),
+                            Vec::new(),
+                            serde_json::json!({ "result_chars": result_str.len() }),
+                        )
+                        .map_err(|e| PyRuntimeError::new_err(format!("session journal: {e}")))?;
+                }
                 messages.push(Message {
                     role: "tool".into(),
                     content: result_str,
@@ -212,6 +274,21 @@ impl AgentRuntime {
                     tool_call_id: Some(id),
                 });
             }
+        }
+
+        if let Some(journal) = session_journal.as_mut() {
+            journal
+                .append(
+                    "run_completed",
+                    None,
+                    Vec::new(),
+                    serde_json::json!({
+                        "iterations": iter_done,
+                        "tool_calls_executed": tool_calls_executed,
+                        "output_chars": final_answer.len(),
+                    }),
+                )
+                .map_err(|e| PyRuntimeError::new_err(format!("session journal: {e}")))?;
         }
 
         let elapsed_ms = t_start.elapsed().as_secs_f64() * 1000.0;
@@ -314,6 +391,14 @@ impl AgentRuntime {
 }
 
 // ---------- dispatch helpers ----------
+
+fn session_id() -> String {
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|duration| duration.as_nanos())
+        .unwrap_or(0);
+    format!("run-{}-{nanos}", std::process::id())
+}
 
 fn dispatch_sequential(
     py: Python<'_>,

@@ -1,0 +1,29 @@
+[package]
+name = "f3dx-session"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Crash-safe session journal and process lease primitives for f3dx"
+repository.workspace = true
+
+[lib]
+name = "f3dx_session"
+
+[dependencies]
+blake3.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+pyo3.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_Security",
+    "Win32_System_JobObjects",
+    "Win32_System_Threading",
+] }
+
+[lints]
+workspace = true

@@ -19,6 +19,7 @@ f3dx-mcp = { path = "../f3dx-mcp" }
 f3dx-cache = { path = "../f3dx-cache" }
 f3dx-replay = { path = "../f3dx-replay" }
 f3dx-router = { path = "../f3dx-router" }
+f3dx-session = { path = "../f3dx-session" }
 tokio = { workspace = true }
 pyo3 = { workspace = true, features = ["extension-module"] }
 serde_json = { workspace = true }
