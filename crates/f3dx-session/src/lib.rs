@@ -109,6 +109,7 @@ impl Journal {
             .create(true)
             .read(true)
             .write(true)
+            .truncate(false)
             .open(&path)?;
         let (records, previous_hash) = scan_and_repair(&mut file)?;
         file.seek(SeekFrom::End(0))?;
@@ -330,12 +331,15 @@ pub fn validate_records(records: &[SessionEvent]) -> ValidationReport {
         known_refs.insert((event.session_id.as_str(), event.sequence));
     }
 
-    let mut report = ValidationReport::default();
-    report.duplicate_effect_ids = effect_counts
+    let mut duplicate_effect_ids = effect_counts
         .into_iter()
         .filter_map(|(effect_id, count)| (count > 1).then_some(effect_id.to_owned()))
         .collect();
-    report.duplicate_effect_ids.sort();
+    duplicate_effect_ids.sort();
+    let mut report = ValidationReport {
+        duplicate_effect_ids,
+        ..ValidationReport::default()
+    };
 
     for event in records {
         for reference in &event.refs {
@@ -388,7 +392,8 @@ impl ProcessLease {
                     SetInformationJobObject(
                         job,
                         JobObjectExtendedLimitInformation,
-                        (&info as *const _).cast(),
+                        (&info as *const JOBOBJECT_EXTENDED_LIMIT_INFORMATION)
+                            .cast::<std::ffi::c_void>(),
                         std::mem::size_of_val(&info) as u32,
                     )
                 };
